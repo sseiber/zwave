@@ -1,0 +1,30 @@
+{
+  "$id": "IDeviceControlRequest",
+  "$ref": "#/definitions/IDeviceControlRequest",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "DeviceAction": {
+      "enum": [
+        "on",
+        "off",
+        "dim"
+      ],
+      "type": "string"
+    },
+    "IDeviceControlRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/DeviceAction"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    }
+  }
+}

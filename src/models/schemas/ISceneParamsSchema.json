@@ -1,0 +1,19 @@
+{
+  "$id": "ISceneParams",
+  "$ref": "#/definitions/ISceneParams",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ISceneParams": {
+      "additionalProperties": false,
+      "properties": {
+        "sceneId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sceneId"
+      ],
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+services:
+  zwave-service:
+    # Pull the published image, or build locally with the profile below
+    image: ghcr.io/sseiber/zwave-service:latest
+    # build:
+    #   context: ../..
+    #   dockerfile: docker/Dockerfile
+    container_name: zwave-service
+    restart: unless-stopped
+    devices:
+      # Left = the Z-Stick's path on the Pi; right = a fixed name inside the container
+      # (arbitrary, but must match zwaveSerialPort below). Find the host path with
+      # `ls -l /dev/serial/by-id/` (see the deployment README, step 5). Dual-port
+      # CP210x sticks expose -if00-port0 and -if01-port0 — pick the Z-Wave interface
+      # (on the Aeotec Z-Stick 10 Pro that's -if01-port0; if00 times out).
+      # Replace the placeholder below with your stick's actual by-id path:
+      - /dev/serial/by-id/REPLACE-WITH-YOUR-STICK-if01-port0:/dev/zwave
+    volumes:
+      # Config is supplied via `environment:` below, so no config file mount is
+      # needed. To use file-based config instead, drop a configs/production.env
+      # next to this compose file and add:  - ./configs:/app/configs:ro
+      - zwave-data:/rpi-zwave/data
+    environment:
+      - NODE_ENV=production
+      - LOG_LEVEL=info
+      - PORT=9094
+      - zwaveStorage=/rpi-zwave/data
+      - zwaveSerialPort=/dev/zwave
+    ports:
+      - "9094:9094"
+    networks:
+      - zwave-network
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" } # cap log growth
+
+volumes:
+  zwave-data:
+    driver: local
+
+networks:
+  zwave-network:
+    driver: bridge

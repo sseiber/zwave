@@ -1,0 +1,26 @@
+{
+  "$id": "ICreateRoomRequest",
+  "$ref": "#/definitions/ICreateRoomRequest",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ICreateRoomRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "deviceIds": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "deviceIds"
+      ],
+      "type": "object"
+    }
+  }
+}

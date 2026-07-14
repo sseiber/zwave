@@ -1,0 +1,69 @@
+{
+  "$id": "IDeviceInfo",
+  "$ref": "#/definitions/IDeviceInfo",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "DeviceStatus": {
+      "enum": [
+        "unknown",
+        "asleep",
+        "awake",
+        "dead",
+        "alive"
+      ],
+      "type": "string"
+    },
+    "DeviceType": {
+      "enum": [
+        "switch",
+        "dimmer",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "IDeviceInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "type": "number"
+        },
+        "location": {
+          "type": "string"
+        },
+        "manufacturer": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "number"
+        },
+        "on": {
+          "type": "boolean"
+        },
+        "product": {
+          "type": "string"
+        },
+        "ready": {
+          "type": "boolean"
+        },
+        "status": {
+          "$ref": "#/definitions/DeviceStatus"
+        },
+        "type": {
+          "$ref": "#/definitions/DeviceType"
+        }
+      },
+      "required": [
+        "nodeId",
+        "name",
+        "location",
+        "type",
+        "status",
+        "ready"
+      ],
+      "type": "object"
+    }
+  }
+}

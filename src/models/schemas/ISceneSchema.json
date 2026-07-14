@@ -1,0 +1,46 @@
+{
+  "$id": "IScene",
+  "$ref": "#/definitions/IScene",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IScene": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "levels": {
+          "items": {
+            "$ref": "#/definitions/ISceneLevel"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "levels"
+      ],
+      "type": "object"
+    },
+    "ISceneLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "deviceId": {
+          "type": "number"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "deviceId",
+        "level"
+      ],
+      "type": "object"
+    }
+  }
+}

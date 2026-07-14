@@ -1,0 +1,42 @@
+{
+  "$id": "ICreateSceneRequest",
+  "$ref": "#/definitions/ICreateSceneRequest",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ICreateSceneRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "levels": {
+          "items": {
+            "$ref": "#/definitions/ISceneLevel"
+          },
+          "type": "array"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "levels"
+      ],
+      "type": "object"
+    },
+    "ISceneLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "deviceId": {
+          "type": "number"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "deviceId",
+        "level"
+      ],
+      "type": "object"
+    }
+  }
+}

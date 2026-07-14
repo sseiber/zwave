@@ -1,0 +1,30 @@
+{
+  "$id": "IRoomControlRequest",
+  "$ref": "#/definitions/IRoomControlRequest",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "DeviceAction": {
+      "enum": [
+        "on",
+        "off",
+        "dim"
+      ],
+      "type": "string"
+    },
+    "IRoomControlRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/definitions/DeviceAction"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "type": "object"
+    }
+  }
+}

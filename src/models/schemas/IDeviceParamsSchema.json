@@ -1,0 +1,19 @@
+{
+  "$id": "IDeviceParams",
+  "$ref": "#/definitions/IDeviceParams",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IDeviceParams": {
+      "additionalProperties": false,
+      "properties": {
+        "nodeId": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "nodeId"
+      ],
+      "type": "object"
+    }
+  }
+}

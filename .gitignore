@@ -1,0 +1,61 @@
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage
+.nyc_output
+
+# Dependency directories
+node_modules/
+jspm_packages/
+
+# Optional npm cache directory
+.npm
+
+# Optional eslint cache
+.eslintcache
+
+# Output of 'npm pack'
+*.tgz
+
+# dotenv environment variables file
+.env
+
+# Editors
+.vs
+.idea/
+.vscode/*
+
+# Mac OS
+.DS_Store
+.DS_Store?
+**/DS_Store
+
+# Windows
+Thumbs.db
+
+# Credentials
+*.cer
+*.pfx
+*.pem
+*.key
+
+# Build artifacts
+dist
+dist-*
+**/tsconfig.tsbuildinfo
+
+# Runtime storage (Z-Wave cache, generated keys, rooms/scenes)
+storage
+
+# Scratch notes
+notes.md
+notes.txt

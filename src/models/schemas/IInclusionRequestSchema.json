@@ -1,0 +1,32 @@
+{
+  "$id": "IInclusionRequest",
+  "$ref": "#/definitions/IInclusionRequest",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IInclusionRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "pin": {
+          "type": "string"
+        },
+        "secure": {
+          "type": "boolean"
+        },
+        "strategy": {
+          "$ref": "#/definitions/InclusionStrategyOption"
+        }
+      },
+      "type": "object"
+    },
+    "InclusionStrategyOption": {
+      "enum": [
+        "default",
+        "insecure",
+        "s2",
+        "s0",
+        "smartStart"
+      ],
+      "type": "string"
+    }
+  }
+}

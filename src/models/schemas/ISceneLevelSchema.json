@@ -1,0 +1,23 @@
+{
+  "$id": "ISceneLevel",
+  "$ref": "#/definitions/ISceneLevel",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ISceneLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "deviceId": {
+          "type": "number"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "deviceId",
+        "level"
+      ],
+      "type": "object"
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "$id": "IRoom",
+  "$ref": "#/definitions/IRoom",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IRoom": {
+      "additionalProperties": false,
+      "properties": {
+        "deviceIds": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "deviceIds"
+      ],
+      "type": "object"
+    }
+  }
+}
