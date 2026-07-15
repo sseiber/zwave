@@ -1,25 +1,28 @@
 {
-    "name": "zwave-service",
-    "version": "1.0.1",
+    "name": "zwave-monorepo",
+    "version": "1.1.0",
+    "private": true,
     "type": "module",
-    "description": "Z-Wave controller service for Raspberry Pi",
+    "description": "Z-Wave controller service + web UI monorepo",
     "engines": {
         "node": ">=20.0.0"
     },
-    "main": "dist/index.js",
+    "workspaces": [
+        "packages/contracts",
+        "packages/service",
+        "packages/web"
+    ],
     "scripts": {
-        "test": "echo \"TODO: need tests\"",
+        "build": "npm run build:service && npm run build -w @zwave-service/web",
+        "build:contracts": "npm run build -w @zwave-service/contracts",
+        "build:service": "npm run build:contracts && npm run build:schemas -w @zwave-service/service && npm run build -w @zwave-service/service",
+        "build:web": "npm run build:contracts && npm run build -w @zwave-service/web",
         "lint": "eslint .",
-        "build": "tsc --build --verbose",
-        "build:all": "tsc --build --force --verbose",
-        "build:schemas": "rm -f ./src/models/schemas/*.* && node ./.scripts/buildTypeSchemas.cjs --types-file ../src/models/zwaveTypes.ts",
-        "clean": "tsc --build --clean && npm run clean:all",
-        "clean:all": "./.scripts/clean-all.sh",
-        "dockerbuild": "npm run build && node ./.scripts/dockerBuild.cjs -b -p",
-        "dockerpush": "node ./.scripts/dockerBuild.cjs -p",
-        "preversion": "npm test",
-        "version": "npm run dockerbuild",
-        "postversion": "npm run dockerpush"
+        "clean": "npm run clean --workspaces --if-present && ./.scripts/clean-all.sh",
+        "dev:service": "npm run dev -w @zwave-service/service",
+        "dev:web": "npm run dev -w @zwave-service/web",
+        "dockerbuild": "node ./.scripts/dockerBuild.cjs -b -p",
+        "dockerpush": "node ./.scripts/dockerBuild.cjs -p"
     },
     "keywords": [
         "automation",
@@ -32,29 +35,12 @@
         "type": "git",
         "url": "git@github.com:sseiber/zwave-service.git"
     },
-    "dependencies": {
-        "@fastify/autoload": "^6.4.0",
-        "@fastify/sensible": "^6.0.4",
-        "@zwave-js/core": "^15.25.3",
-        "env-schema": "^7.0.0",
-        "fastify": "^5.10.0",
-        "fastify-plugin": "^6.0.0",
-        "fs-extra": "^11.3.6",
-        "pino-pretty": "^13.1.3",
-        "uuid": "^14.0.1",
-        "zwave-js": "^15.25.3"
-    },
     "devDependencies": {
         "@eslint/js": "^9.39.2",
         "@stylistic/eslint-plugin": "^5.10.0",
-        "@types/fs-extra": "^11.0.4",
         "@types/node": "^26.1.1",
-        "commander": "15.0.0",
         "eslint": "^9.39.2",
-        "eslint-plugin-unicorn": "^63.0.0",
-        "eslint-scope": "^9.1.0",
         "globals": "^17.3.0",
-        "ts-json-schema-generator": "^2.5.0",
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.56.0"
     }

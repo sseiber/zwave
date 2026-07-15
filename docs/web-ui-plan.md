@@ -1,7 +1,9 @@
-# Web UI — architecture plan (decision pending)
+# Web UI — architecture plan (IMPLEMENTED as option 3)
 
-Planning notes for adding a web interface to manage the zwave-service. **No code
-written yet** — this captures the options discussion so it survives across sessions.
+> **Status: done (v1.1.0).** The repo is now an npm-workspaces monorepo
+> (`packages/{contracts,service,web}`) with a Vite + React client the service serves
+> via `@fastify/static`, shipped as one Docker image. The notes below are the
+> original decision record.
 
 ## The question
 

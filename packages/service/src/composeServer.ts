@@ -7,6 +7,7 @@ import sensible from '@fastify/sensible';
 import { resolve as pathResolve } from 'node:path';
 import configPlugin from './plugins/config.js';
 import showRoutesPlugin from './plugins/showRoutes.js';
+import webClientPlugin from './plugins/webClient.js';
 import { getDirname, exMessage } from './utils/index.js';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -39,6 +40,10 @@ const composeServer = async (options: composeOptions = {}): Promise<FastifyInsta
                 prefix: '/api/v1'
             }
         });
+
+        server.log.info({ tags: [ModuleName] }, `Registering web client`);
+
+        await server.register(webClientPlugin);
 
         await server.ready();
 

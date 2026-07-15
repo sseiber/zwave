@@ -20,6 +20,7 @@ interface IZWaveEnv {
     PORT: string;
     zwaveStorage: string;
     zwaveSerialPort: string;
+    webClientRoot: string;
 }
 
 interface IZWaveConfig {
@@ -44,13 +45,18 @@ const configSchema: JSONSchemaType<IZWaveEnv> = {
         zwaveSerialPort: {
             type: 'string',
             default: '/dev/ttyACM0'
+        },
+        webClientRoot: {
+            type: 'string',
+            default: '/app/web'
         }
     },
     required: [
         'LOG_LEVEL',
         'PORT',
         'zwaveStorage',
-        'zwaveSerialPort'
+        'zwaveSerialPort',
+        'webClientRoot'
     ]
 };
 

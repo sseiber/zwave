@@ -20,7 +20,7 @@ export {
     ISceneParams,
     ICreateSceneRequest,
     IUpdateSceneRequest
-} from './zwaveTypes.js';
+} from '@zwave-service/contracts';
 
 import IServiceResponseSchemaRaw from './schemas/IServiceResponseSchema.json' with { type: 'json' };
 import IServiceErrorMessageSchemaRaw from './schemas/IServiceErrorMessageSchema.json' with { type: 'json' };

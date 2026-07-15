@@ -9,6 +9,9 @@
         "module": "NodeNext",
         "skipLibCheck": true,
         "moduleResolution": "nodenext",
+        "types": [
+            "node"
+        ],
         "declaration": true,
         "declarationMap": true,
         "sourceMap": true,
@@ -29,7 +32,6 @@
     ],
     "exclude": [
         "node_modules",
-        "dist",
-        "storage"
+        "dist"
     ]
 }

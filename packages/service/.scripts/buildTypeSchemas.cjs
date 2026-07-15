@@ -31,6 +31,9 @@ async function start() {
             throw new Error(`outputDirectory ${outputDirectory} not found`);
         }
 
+        // The types live in the contracts package; use its tsconfig for compiler options.
+        const typesTsConfig = path.resolve(path.dirname(typesTsFile), '../tsconfig.json');
+
         const typesTsFileSource = fse.readFileSync(typesTsFile, { encoding: 'utf-8' });
         const interfaceNames = [...typesTsFileSource.matchAll(/export interface (\S*)/g)].map((match) => match[1]);
 
@@ -39,7 +42,7 @@ async function start() {
 
             const buildArgs = [
                 '--tsconfig',
-                './tsconfig.json',
+                typesTsConfig,
                 '--path',
                 typesTsFile,
                 '--type',
@@ -50,7 +53,8 @@ async function start() {
                 path.resolve(outputDirectory, `${interfaceName}Schema.json`)
             ];
 
-            childProcess.execFileSync('./node_modules/.bin/ts-json-schema-generator', buildArgs, { stdio: [0, 1, 2] });
+            // Resolved from PATH (npm run adds the workspace + root node_modules/.bin)
+            childProcess.execFileSync('ts-json-schema-generator', buildArgs, { stdio: [0, 1, 2] });
         }
 
         log(`Type builder complete`);

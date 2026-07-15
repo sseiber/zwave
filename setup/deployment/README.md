@@ -119,7 +119,7 @@ path from step 5. A tuned service block:
 ```yaml
 services:
   zwave-service:
-    image: ghcr.io/sseiber/zwave-service:1.0.1     # pin the version
+    image: ghcr.io/sseiber/zwave-service:1.1.0     # pin the version
     container_name: zwave-service
     restart: unless-stopped
     devices:
@@ -169,6 +169,10 @@ curl -X POST http://localhost:9094/api/v1/inclusion/start \
 #    ...activate inclusion on the device now...
 curl http://localhost:9094/api/v1/devices            # new node appears
 ```
+
+Then open the **web UI** in a browser at `http://<pi-host>:9094/` (e.g.
+`http://zwave:9094/`) — it lists your devices with live state and provides
+on/off/dim control and insecure inclusion.
 
 ## 8. Back up the volume (the important one)
 

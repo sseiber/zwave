@@ -1,10 +1,19 @@
-# Z-Wave controller service
+# Z-Wave controller (monorepo)
 
-A Fastify REST service that drives an [Aeotec Z-Stick 10 Pro](https://aeotec.com/) Z-Wave
-controller. It exposes routes to include/exclude devices, list them, send on/off/dim
-commands to switches and dimmers, and group devices into rooms and scenes.
+An npm-workspaces monorepo: a Fastify REST service that drives an
+[Aeotec Z-Stick 10 Pro](https://aeotec.com/) Z-Wave controller, plus a React web
+client to manage it. The service includes/excludes devices, lists them, sends
+on/off/dim commands to switches and dimmers, and groups devices into rooms and
+scenes. It ships as a **single Docker image** (the service serves both the REST API
+and the web UI), designed to run on a Raspberry Pi 4 (Ubuntu 24.x, ARM64).
 
-Designed to run in Docker on a Raspberry Pi 4 (Ubuntu 24.x, ARM64).
+## Workspaces
+
+| Package | Name | Purpose |
+| ------- | ---- | ------- |
+| `packages/contracts` | `@zwave-service/contracts` | Shared API types (source of truth), imported by the service and the web client |
+| `packages/service` | `@zwave-service/service` | Fastify service (REST API + serves the web build) |
+| `packages/web` | `@zwave-service/web` | Vite + React web client |
 
 ## Dependencies
 
@@ -13,25 +22,30 @@ Designed to run in Docker on a Raspberry Pi 4 (Ubuntu 24.x, ARM64).
 - Docker (for building/running the distributable image)
 - An Aeotec Z-Stick 10 Pro on a serial port (default `/dev/ttyACM0`)
 
-## Install & run locally
+## Install & build
 
 ```bash
-npm install
-npm run build:schemas   # generate JSON schemas from the TypeScript types
-npm run build
-npm start               # or press F5 in VS Code
+npm install              # installs all workspaces
+npm run build            # contracts -> schemas -> service -> web (dependency order)
 ```
 
-Configuration comes from `./configs/${NODE_ENV}.env` and/or environment variables
-(see [Configuration](#configuration)). A `development.env` is provided.
+## Local development
 
-## Development
+Run the service (needs a Z-Stick) and the web client's Vite dev server side by side:
 
-- **lint:** `npm run lint`
-- **build:** `npm run build` (`npm run build:all` to force a full rebuild)
-- **regenerate schemas:** `npm run build:schemas` (run after editing `src/models/zwaveTypes.ts`)
-- **build a new versioned image:** `npm version [major|minor|patch]`
-  _(runs the Docker build and push; assumes access to the container registry)_
+```bash
+npm run dev:service      # Fastify on :9094 (API only in dev)
+npm run dev:web          # Vite dev server; proxies /api -> localhost:9094
+```
+
+Service config comes from `packages/service/configs/${NODE_ENV}.env` and/or
+environment variables (see [Configuration](#configuration)). A `development.env` is
+provided.
+
+- **lint:** `npm run lint` (service + contracts)
+- **build service only:** `npm run build:service` (regenerates schemas first)
+- **regenerate schemas:** `npm run build:schemas -w @zwave-service/service`
+  (after editing `packages/contracts/src/zwaveTypes.ts`)
 
 ## Configuration
 
@@ -41,12 +55,20 @@ Configuration comes from `./configs/${NODE_ENV}.env` and/or environment variable
 | `PORT`            | `9094`              | HTTP listen port                                       |
 | `zwaveStorage`    | `/rpi-zwave/data`   | Directory for the network cache, security keys, and rooms/scenes JSON |
 | `zwaveSerialPort` | `/dev/ttyACM0`      | Serial device path for the Z-Stick                     |
+| `webClientRoot`   | `/app/web`          | Directory of the built SPA to serve; API-only if it has no `index.html` |
 
 Security (S2/S0) keys are generated on first run and saved to
 `${zwaveStorage}/securityKeys.json`. They may be overridden with the env vars
 `ZWAVE_S0_LEGACY_KEY`, `ZWAVE_S2_UNAUTHENTICATED_KEY`, `ZWAVE_S2_AUTHENTICATED_KEY`,
 `ZWAVE_S2_ACCESS_CONTROL_KEY`, `ZWAVE_LR_S2_AUTHENTICATED_KEY`,
 `ZWAVE_LR_S2_ACCESS_CONTROL_KEY` (each a 32-char hex string).
+
+## Web UI
+
+In the deployed image the service serves the React web client at the root URL —
+open `http://<host>:9094/` (e.g. `http://zwave:9094/`). It lists devices with live
+state and provides on/off/dim control and insecure inclusion. The API lives under
+`/api/v1`.
 
 ## API
 

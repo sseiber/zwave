@@ -67,12 +67,14 @@ export default tseslint.config(
             'resources',
             '**/dist',
             'storage',
-            'thunder-tests'
+            'thunder-tests',
+            'packages/web/**'
         ]
     },
     {
         files: [
-            'src/**/*.ts'
+            'packages/service/src/**/*.ts',
+            'packages/contracts/src/**/*.ts'
         ],
         extends: [
             jseslint.configs.recommended,
