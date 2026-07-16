@@ -21,6 +21,7 @@ import { exMessage } from '../utils/index.js';
 import { getGeoLocation, validateSchedule } from '../services/schedule.js';
 import { ServiceName as StoreServiceName } from '../services/store.js';
 import { ServiceName as ZWaveServiceName } from '../services/zwave.js';
+import { ServiceName as SchedulerServiceName } from '../services/scheduler.js';
 
 const RouteName = 'scenesRouter';
 
@@ -64,6 +65,30 @@ const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (serv
                         statusCode: 200,
                         message: `Found ${scenes.length} scene(s)`,
                         data: scenes
+                    };
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
+            // Runtime status (next/last run) for every scene. A static route, so it is
+            // matched ahead of GET /scenes/:sceneId regardless of registration order.
+            serverRoute.route<{ Reply: IServiceReply }>({
+                method: 'GET',
+                url: '/scenes/status',
+                schema: {
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const statuses = serverRoute.scheduler.getSceneStatus();
+
+                    const result: IServiceResponse = {
+                        succeeded: true,
+                        statusCode: 200,
+                        message: `Status for ${statuses.length} scene(s)`,
+                        data: statuses
                     };
 
                     return response.status(result.statusCode as 200).send(result);
@@ -205,7 +230,12 @@ const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (serv
                         throw serverRoute.httpErrors.notFound(`No scene found with id ${request.params.sceneId}`);
                     }
 
+                    const when = Date.now();
+
                     const result = await serverRoute.zwaveService.applyScene(scene.devices);
+
+                    // Record manual activations too, so the UI's last-run reflects both
+                    serverRoute.store.recordSceneRun(scene.id, when, { succeeded: result.succeeded, message: result.message });
 
                     return response.status(result.statusCode as 200).send(result);
                 }
@@ -226,6 +256,7 @@ export default fp(scenesRouterPlugin, {
     name: RouteName,
     dependencies: [
         StoreServiceName,
-        ZWaveServiceName
+        ZWaveServiceName,
+        SchedulerServiceName
     ]
 });

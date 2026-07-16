@@ -1,0 +1,44 @@
+{
+  "$id": "ISceneStatus",
+  "$ref": "#/definitions/ISceneStatus",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ISceneRunResult": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "succeeded": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "succeeded",
+        "message"
+      ],
+      "type": "object"
+    },
+    "ISceneStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "lastResult": {
+          "$ref": "#/definitions/ISceneRunResult"
+        },
+        "lastRun": {
+          "type": "string"
+        },
+        "nextRun": {
+          "type": "string"
+        },
+        "sceneId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sceneId"
+      ],
+      "type": "object"
+    }
+  }
+}

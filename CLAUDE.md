@@ -149,6 +149,13 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
   - Scene shape: `{ id, name, roomId, trigger: manual|scheduled, schedule?, devices: [{ deviceId, action: on|off|dim, level? }] }`
   - `trigger: scheduled` requires a valid `schedule`; the route rejects bad ones (400)
     rather than letting them silently never fire.
+- `GET /scenes/status` — runtime `[{ sceneId, nextRun?, lastRun?, lastResult? }]` for
+  every scene. `nextRun` (scheduled scenes only) is the scheduler's in-memory plan;
+  `lastRun`/`lastResult` come from the persisted run record (both manual and scheduled
+  activations record one). Static route, matched ahead of `/scenes/:sceneId`.
+  - Run records persist to `sceneRuns.json` in the storage volume, kept off `IScene`
+    so the stored scene stays a pure user shape. Writes are throttled (≤ once/30s per
+    store) and flushed on shutdown; the in-memory value is authoritative.
 
 ## Hardware Requirements
 

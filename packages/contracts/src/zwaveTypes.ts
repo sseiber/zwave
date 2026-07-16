@@ -248,6 +248,22 @@ export interface ISceneParams {
     sceneId: string;
 }
 
+// Outcome of a scene activation, recorded so the UI can show the last result.
+export interface ISceneRunResult {
+    succeeded: boolean;
+    message: string;
+}
+
+// Runtime status for a scene (GET /scenes/status). Computed/merged, never stored on
+// the scene itself: `nextRun` comes from the scheduler (scheduled scenes only),
+// `lastRun`/`lastResult` from the persisted run record (manual or scheduled).
+export interface ISceneStatus {
+    sceneId: string;
+    nextRun?: string;    // ISO date-time; only for scheduled scenes with a future run
+    lastRun?: string;    // ISO date-time of the most recent activation
+    lastResult?: ISceneRunResult;
+}
+
 export interface ICreateSceneRequest {
     name: string;
     roomId: string;

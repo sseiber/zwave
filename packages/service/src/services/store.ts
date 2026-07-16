@@ -12,7 +12,8 @@ import {
     IUpdateRoomRequest,
     IScene,
     ICreateSceneRequest,
-    IUpdateSceneRequest
+    IUpdateSceneRequest,
+    ISceneRunResult
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
 import { PluginName as ConfigPluginName } from '../plugins/config.js';
@@ -21,6 +22,21 @@ export const ServiceName = 'store';
 
 const RoomsFileName = 'rooms.json';
 const ScenesFileName = 'scenes.json';
+const SceneRunsFileName = 'sceneRuns.json';
+
+// Run records are written back to disk at most this often per store: a scene on a
+// 1s interval would otherwise rewrite the file every tick. The in-memory map stays
+// authoritative and the trailing write is flushed on shutdown, so at most this much
+// last-run history is lost on an unclean stop.
+const RunsThrottleMs = 30 * 1000;
+
+// Persisted last-run record for a scene. Kept out of IScene so the stored scene stays
+// a pure user-defined shape; nextRun is never persisted (it depends on "now").
+export interface ISceneRunRecord {
+    sceneId: string;
+    lastRun: string;     // ISO date-time
+    lastResult: ISceneRunResult;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IStorePluginOptions { }
@@ -32,6 +48,11 @@ const storePlugin: FastifyPluginAsync<IStorePluginOptions> = async (server: Fast
         const store = await RoomSceneStore.createStore(server);
 
         server.decorate(ServiceName, store);
+
+        // Persist any throttled run record still pending when the service stops
+        server.addHook('onClose', async () => {
+            await store.flushSceneRuns();
+        });
     }
     catch (ex) {
         server.log.error({ tags: [ServiceName] }, `registering failed: ${exMessage(ex)}`);
@@ -46,10 +67,11 @@ class RoomSceneStore {
 
         const rooms = await RoomSceneStore.readCollection<IRoom>(pathResolve(storagePath, RoomsFileName));
         const scenes = await RoomSceneStore.readCollection<IScene>(pathResolve(storagePath, ScenesFileName));
+        const runs = await RoomSceneStore.readCollection<ISceneRunRecord>(pathResolve(storagePath, SceneRunsFileName));
 
         server.log.info({ tags: [ServiceName] }, `Loaded ${rooms.length} room(s) and ${scenes.length} scene(s) from ${storagePath}`);
 
-        return new RoomSceneStore(server, storagePath, rooms, scenes);
+        return new RoomSceneStore(server, storagePath, rooms, scenes, runs);
     }
 
     private static async readCollection<T>(filePath: string): Promise<T[]> {
@@ -71,12 +93,17 @@ class RoomSceneStore {
     private storagePath: string;
     private rooms: IRoom[];
     private scenes: IScene[];
+    private runs: Map<string, ISceneRunRecord>;
+    private runsFlushTimer: NodeJS.Timeout | undefined;
+    private lastRunsFlush: number;
 
-    constructor(server: FastifyInstance, storagePath: string, rooms: IRoom[], scenes: IScene[]) {
+    constructor(server: FastifyInstance, storagePath: string, rooms: IRoom[], scenes: IScene[], runs: ISceneRunRecord[]) {
         this.server = server;
         this.storagePath = storagePath;
         this.rooms = rooms;
         this.scenes = scenes;
+        this.runs = new Map(runs.map(run => [run.sceneId, run]));
+        this.lastRunsFlush = 0;
     }
 
     //
@@ -203,9 +230,76 @@ class RoomSceneStore {
 
         this.scenes.splice(index, 1);
 
+        // Drop the orphaned run record so it doesn't linger in sceneRuns.json
+        if (this.runs.delete(sceneId)) {
+            this.scheduleRunsFlush();
+        }
+
         await this.persistScenes();
 
         return true;
+    }
+
+    //
+    // Scene run records (last activation + result), persisted with a throttled write
+    //
+    public getSceneRun(sceneId: string): ISceneRunRecord | undefined {
+        return this.runs.get(sceneId);
+    }
+
+    public listSceneRuns(): ISceneRunRecord[] {
+        return [...this.runs.values()];
+    }
+
+    // Records that a scene activated (manual or scheduled). The in-memory value is
+    // authoritative and updated synchronously; the disk write is throttled.
+    public recordSceneRun(sceneId: string, whenMs: number, result: ISceneRunResult): void {
+        this.runs.set(sceneId, {
+            sceneId,
+            lastRun: new Date(whenMs).toISOString(),
+            lastResult: result
+        });
+
+        this.scheduleRunsFlush();
+    }
+
+    // Flush any pending run-record write immediately (called on shutdown)
+    public async flushSceneRuns(): Promise<void> {
+        if (this.runsFlushTimer) {
+            clearTimeout(this.runsFlushTimer);
+            this.runsFlushTimer = undefined;
+
+            await this.flushRuns();
+        }
+    }
+
+    private scheduleRunsFlush(): void {
+        // A flush is already pending; the current in-memory state will be captured by it
+        if (this.runsFlushTimer) {
+            return;
+        }
+
+        const delay = Math.max(0, RunsThrottleMs - (Date.now() - this.lastRunsFlush));
+
+        this.runsFlushTimer = setTimeout(() => {
+            this.runsFlushTimer = undefined;
+
+            void this.flushRuns();
+        }, delay);
+
+        // Don't keep the event loop alive just for a run-record flush
+        this.runsFlushTimer.unref?.();
+    }
+
+    private async flushRuns(): Promise<void> {
+        this.lastRunsFlush = Date.now();
+
+        try {
+            await this.writeCollection(SceneRunsFileName, [...this.runs.values()]);
+        }
+        catch {
+            // writeCollection already logged; swallow so a throttled flush never crashes the tick
+        }
     }
 
     //

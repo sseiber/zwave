@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { IDeviceInfo, IRoom, IScene } from '@zwave-service/contracts';
+import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import type { RunFn } from './types.ts';
 import { api } from './api.ts';
 import { DevicesPanel } from './panels/DevicesPanel.tsx';
@@ -23,6 +23,7 @@ export function App() {
     const [devices, setDevices] = useState<IDeviceInfo[]>([]);
     const [rooms, setRooms] = useState<IRoom[]>([]);
     const [scenes, setScenes] = useState<IScene[]>([]);
+    const [sceneStatus, setSceneStatus] = useState<ISceneStatus[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState<string | null>(null);
@@ -58,15 +59,28 @@ export function App() {
         }
     }, []);
 
-    // Initial load, then poll device state so the UI reflects the mesh
+    const refreshSceneStatus = useCallback(async (): Promise<void> => {
+        try {
+            setSceneStatus(await api.listSceneStatus());
+        }
+        catch (ex) {
+            setError(toMessage(ex));
+        }
+    }, []);
+
+    // Initial load, then poll device state and scene run-times so the UI stays live
     useEffect(() => {
         void refreshDevices();
         void refreshRooms();
         void refreshScenes();
+        void refreshSceneStatus();
 
-        const id = setInterval(() => void refreshDevices(), 5000);
+        const id = setInterval(() => {
+            void refreshDevices();
+            void refreshSceneStatus();
+        }, 5000);
         return () => clearInterval(id);
-    }, [refreshDevices, refreshRooms, refreshScenes]);
+    }, [refreshDevices, refreshRooms, refreshScenes, refreshSceneStatus]);
 
     const run = useCallback<RunFn>(async (fn, successMessage) => {
         try {
@@ -94,7 +108,7 @@ export function App() {
         <div className="app">
             <header>
                 <h1>Z-Wave Control</h1>
-                <button onClick={() => { void refreshDevices(); void refreshRooms(); void refreshScenes(); }}>Refresh</button>
+                <button onClick={() => { void refreshDevices(); void refreshRooms(); void refreshScenes(); void refreshSceneStatus(); }}>Refresh</button>
             </header>
 
             <nav className="tabs">
@@ -121,7 +135,7 @@ export function App() {
                     ? <DevicesPanel devices={devices} run={run} refresh={refreshDevices} />
                     : tab === 'rooms'
                         ? <RoomsPanel rooms={rooms} devices={devices} run={run} refresh={refreshRooms} />
-                        : <ScenesPanel scenes={scenes} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} />}
+                        : <ScenesPanel scenes={scenes} statuses={sceneStatus} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} refreshStatus={refreshSceneStatus} />}
         </div>
     );
 }
