@@ -173,7 +173,7 @@ const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (serv
                         throw serverRoute.httpErrors.notFound(`No scene found with id ${request.params.sceneId}`);
                     }
 
-                    const result = await serverRoute.zwaveService.applyScene(scene.levels);
+                    const result = await serverRoute.zwaveService.applyScene(scene.devices);
 
                     return response.status(result.statusCode as 200).send(result);
                 }

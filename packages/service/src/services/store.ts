@@ -151,7 +151,9 @@ class RoomSceneStore {
         const scene: IScene = {
             id: uuidv4(),
             name: request.name,
-            levels: request.levels ?? []
+            roomId: request.roomId,
+            trigger: request.trigger,
+            devices: request.devices ?? []
         };
 
         this.scenes.push(scene);
@@ -171,8 +173,16 @@ class RoomSceneStore {
             scene.name = request.name;
         }
 
-        if (request.levels !== undefined) {
-            scene.levels = request.levels;
+        if (request.roomId !== undefined) {
+            scene.roomId = request.roomId;
+        }
+
+        if (request.trigger !== undefined) {
+            scene.trigger = request.trigger;
+        }
+
+        if (request.devices !== undefined) {
+            scene.devices = request.devices;
         }
 
         await this.persistScenes();

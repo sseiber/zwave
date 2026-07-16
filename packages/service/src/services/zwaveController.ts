@@ -278,24 +278,6 @@ export class ZWaveController {
         await node.commandClasses['Multilevel Switch'].set(this.toZWaveLevel(level));
     }
 
-    // Apply a 0-100 level, interpreting 0 as off. Switches turn on for any level > 0.
-    public async applyLevel(nodeId: number, level: number): Promise<void> {
-        this.assertReady();
-
-        const node = this.getNode(nodeId);
-        const type = this.deviceType(node);
-
-        if (type === DeviceType.Dimmer) {
-            await node.commandClasses['Multilevel Switch'].set(this.toZWaveLevel(level));
-        }
-        else if (type === DeviceType.Switch) {
-            await node.commandClasses['Binary Switch'].set(level > 0);
-        }
-        else {
-            throw new Error(`Device ${nodeId} is not a controllable switch or dimmer`);
-        }
-    }
-
     //
     // Internal helpers
     //

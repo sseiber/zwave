@@ -115,18 +115,31 @@ export interface IRoomControlRequest {
 }
 
 //
-// Scenes (a named set of devices each at a specific level)
+// Scenes (a named set of devices, each with an action, belonging to a room)
 //
-export interface ISceneLevel {
+export enum SceneTrigger {
+    // Activated on demand, via the API or the web UI
+    Manual = 'manual',
+    // Reserved: fires at a pre-determined time. Scheduling is not implemented yet,
+    // so a 'scheduled' scene currently only activates when triggered manually.
+    Scheduled = 'scheduled'
+}
+
+// A device participating in a scene, and what it should do when the scene activates
+export interface ISceneDevice {
     deviceId: number;
-    // Target level 0-100 (0 = off, 100 = full). Applied as on/off for switches.
-    level: number;
+    action: DeviceAction;
+    // Target level 0-100, required when action is 'dim' (dimmers only)
+    level?: number;
 }
 
 export interface IScene {
     id: string;
     name: string;
-    levels: ISceneLevel[];
+    // The room this scene belongs to
+    roomId: string;
+    trigger: SceneTrigger;
+    devices: ISceneDevice[];
 }
 
 export interface ISceneParams {
@@ -135,10 +148,14 @@ export interface ISceneParams {
 
 export interface ICreateSceneRequest {
     name: string;
-    levels: ISceneLevel[];
+    roomId: string;
+    trigger: SceneTrigger;
+    devices: ISceneDevice[];
 }
 
 export interface IUpdateSceneRequest {
     name?: string;
-    levels?: ISceneLevel[];
+    roomId?: string;
+    trigger?: SceneTrigger;
+    devices?: ISceneDevice[];
 }

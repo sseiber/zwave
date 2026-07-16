@@ -7,7 +7,7 @@ import {
     DeviceAction,
     IInclusionRequest,
     IServiceResponse,
-    ISceneLevel
+    ISceneDevice
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
 import { ZWaveController } from './zwaveController.js';
@@ -166,14 +166,14 @@ class ZWaveService {
     }
 
     //
-    // Scene activation - set each device to its configured level
+    // Scene activation - apply each participating device's configured action
     //
-    public async applyScene(levels: ISceneLevel[]): Promise<IServiceResponse> {
-        const results = await Promise.all(levels.map(async ({ deviceId, level }) => {
+    public async applyScene(devices: ISceneDevice[]): Promise<IServiceResponse> {
+        const results = await Promise.all(devices.map(async ({ deviceId, action, level }) => {
             try {
-                await this.controller.applyLevel(deviceId, level);
+                await this.applyAction(deviceId, action, level);
 
-                return { nodeId: deviceId, succeeded: true, message: `set to level ${level}` };
+                return { nodeId: deviceId, succeeded: true, message: `action '${action}' applied` };
             }
             catch (ex) {
                 return { nodeId: deviceId, succeeded: false, message: exMessage(ex) };

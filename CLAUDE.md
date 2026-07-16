@@ -126,6 +126,9 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - `POST /devices/:nodeId/control` `{ action: on|off|dim, level? }`
 - `GET|POST /rooms`, `GET|PUT|DELETE /rooms/:roomId`, `POST /rooms/:roomId/control`
 - `GET|POST /scenes`, `GET|PUT|DELETE /scenes/:sceneId`, `POST /scenes/:sceneId/activate`
+  - Scene shape: `{ id, name, roomId, trigger: manual|scheduled, devices: [{ deviceId, action: on|off|dim, level? }] }`
+  - `trigger: scheduled` is stored but **scheduling is not implemented** — such scenes
+    only run when activated manually. Adding it means a scheduler + a time field.
 
 ## Hardware Requirements
 
