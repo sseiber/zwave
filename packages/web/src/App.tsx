@@ -2,13 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import type { RunFn } from './types.ts';
 import { api } from './api.ts';
+import { DashboardPanel } from './panels/DashboardPanel.tsx';
 import { DevicesPanel } from './panels/DevicesPanel.tsx';
 import { RoomsPanel } from './panels/RoomsPanel.tsx';
 import { ScenesPanel } from './panels/ScenesPanel.tsx';
 
-type Tab = 'devices' | 'rooms' | 'scenes';
+type Tab = 'dashboard' | 'devices' | 'rooms' | 'scenes';
 
 const TABS: { id: Tab; label: string }[] = [
+    { id: 'dashboard', label: 'Dashboard' },
     { id: 'devices', label: 'Devices' },
     { id: 'rooms', label: 'Rooms' },
     { id: 'scenes', label: 'Scenes' }
@@ -19,7 +21,7 @@ function toMessage(ex: unknown): string {
 }
 
 export function App() {
-    const [tab, setTab] = useState<Tab>('devices');
+    const [tab, setTab] = useState<Tab>('dashboard');
     const [devices, setDevices] = useState<IDeviceInfo[]>([]);
     const [rooms, setRooms] = useState<IRoom[]>([]);
     const [scenes, setScenes] = useState<IScene[]>([]);
@@ -131,11 +133,13 @@ export function App() {
 
             {loading
                 ? <p className="muted">Loading…</p>
-                : tab === 'devices'
-                    ? <DevicesPanel devices={devices} run={run} refresh={refreshDevices} />
-                    : tab === 'rooms'
-                        ? <RoomsPanel rooms={rooms} devices={devices} run={run} refresh={refreshRooms} />
-                        : <ScenesPanel scenes={scenes} statuses={sceneStatus} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} refreshStatus={refreshSceneStatus} />}
+                : tab === 'dashboard'
+                    ? <DashboardPanel devices={devices} rooms={rooms} scenes={scenes} statuses={sceneStatus} run={run} refresh={refreshDevices} onNavigate={setTab} />
+                    : tab === 'devices'
+                        ? <DevicesPanel devices={devices} run={run} refresh={refreshDevices} />
+                        : tab === 'rooms'
+                            ? <RoomsPanel rooms={rooms} devices={devices} run={run} refresh={refreshRooms} />
+                            : <ScenesPanel scenes={scenes} statuses={sceneStatus} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} refreshStatus={refreshSceneStatus} />}
         </div>
     );
 }
