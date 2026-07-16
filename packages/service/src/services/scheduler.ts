@@ -6,6 +6,7 @@ import {
 import fp from 'fastify-plugin';
 import {
     IScene,
+    ISceneStatus,
     SceneTrigger
 } from '../models/index.js';
 import { exMessage, forget } from '../utils/index.js';
@@ -90,6 +91,23 @@ class SceneScheduler {
         }));
     }
 
+    // Per-scene runtime status for the UI: planned nextRun (scheduled scenes only,
+    // from the in-memory plan) merged with the persisted lastRun/lastResult. Returns
+    // an entry for every scene so a manual scene still surfaces its last activation.
+    public getSceneStatus(): ISceneStatus[] {
+        return this.server.store.listScenes().map((scene) => {
+            const nextRun = this.state.get(scene.id)?.nextRun;
+            const run = this.server.store.getSceneRun(scene.id);
+
+            return {
+                sceneId: scene.id,
+                nextRun: nextRun ? new Date(nextRun).toISOString() : undefined,
+                lastRun: run?.lastRun,
+                lastResult: run?.lastResult
+            };
+        });
+    }
+
     private tick(): void {
         const now = Date.now();
 
@@ -143,15 +161,23 @@ class SceneScheduler {
     private async activate(scene: IScene): Promise<void> {
         this.server.log.info({ tags: [ServiceName] }, `Activating scheduled scene '${scene.name}'`);
 
+        const when = Date.now();
+
         try {
             const response = await this.server.zwaveService.applyScene(scene.devices);
 
             if (!response.succeeded) {
                 this.server.log.warn({ tags: [ServiceName] }, `Scheduled scene '${scene.name}': ${response.message}`);
             }
+
+            this.server.store.recordSceneRun(scene.id, when, { succeeded: response.succeeded, message: response.message });
         }
         catch (ex) {
-            this.server.log.error({ tags: [ServiceName] }, `Scheduled scene '${scene.name}' failed: ${exMessage(ex)}`);
+            const message = exMessage(ex);
+
+            this.server.log.error({ tags: [ServiceName] }, `Scheduled scene '${scene.name}' failed: ${message}`);
+
+            this.server.store.recordSceneRun(scene.id, when, { succeeded: false, message });
         }
     }
 }

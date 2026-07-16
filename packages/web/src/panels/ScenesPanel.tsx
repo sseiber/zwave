@@ -1,27 +1,33 @@
 import { useState } from 'react';
-import type { IDeviceInfo, IRoom, IScene, ISceneDevice, ISchedule } from '@zwave-service/contracts';
+import type { IDeviceInfo, IRoom, IScene, ISceneDevice, ISceneStatus, ISchedule } from '@zwave-service/contracts';
 import { DeviceAction, DeviceType, SceneTrigger, ScheduleKind } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 import { defaultSchedule, describeSchedule } from '../schedule.ts';
+import { relativeTime, relativeUpcoming, absoluteTime } from '../format.ts';
 import { SchedulePicker } from './SchedulePicker.tsx';
 
 interface ScenesPanelProps {
     scenes: IScene[];
+    statuses: ISceneStatus[];
     rooms: IRoom[];
     devices: IDeviceInfo[];
     run: RunFn;
     refresh: () => Promise<void>;
+    refreshStatus: () => Promise<void>;
 }
 
 type Editing = IScene | 'new' | null;
 
-export function ScenesPanel({ scenes, rooms, devices, run, refresh }: ScenesPanelProps) {
+export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, refreshStatus }: ScenesPanelProps) {
     const [editing, setEditing] = useState<Editing>(null);
+
+    const statusById = new Map(statuses.map(s => [s.sceneId, s]));
 
     const activate = async (scene: IScene): Promise<void> => {
         await run(() => api.activateScene(scene.id));
         await refresh();
+        await refreshStatus();
     };
 
     const remove = async (scene: IScene): Promise<void> => {
@@ -88,6 +94,7 @@ export function ScenesPanel({ scenes, rooms, devices, run, refresh }: ScenesPane
                                         <span className="sched">{describeSchedule(scene.schedule)}</span>
                                     )}
                                 </div>
+                                <SceneRunTimes scene={scene} status={statusById.get(scene.id)} />
                                 <ul className="scene-actions">
                                     {scene.devices.map(d => (
                                         <li key={d.deviceId}>
@@ -106,6 +113,35 @@ export function ScenesPanel({ scenes, rooms, devices, run, refresh }: ScenesPane
                     </ul>
                 )}
         </section>
+    );
+}
+
+function SceneRunTimes({ scene, status }: { scene: IScene; status: ISceneStatus | undefined }) {
+    const showNext = scene.trigger === SceneTrigger.Scheduled;
+    const hasLast = Boolean(status?.lastRun);
+
+    // Scheduled scenes always show a "Next" (even if unplanned); manual scenes only
+    // appear here once they've been run at least once.
+    if (!showNext && !hasLast) {
+        return null;
+    }
+
+    return (
+        <div className="run-times">
+            {showNext && (
+                <span title={absoluteTime(status?.nextRun)}>
+                    Next <strong>{status?.nextRun ? relativeUpcoming(status.nextRun) : 'not scheduled'}</strong>
+                </span>
+            )}
+            {hasLast && (
+                <span title={absoluteTime(status?.lastRun)}>
+                    Last <strong>{relativeTime(status?.lastRun)}</strong>
+                    {status?.lastResult && !status.lastResult.succeeded && (
+                        <span className="run-failed" title={status.lastResult.message}> · failed</span>
+                    )}
+                </span>
+            )}
+        </div>
     );
 }
 

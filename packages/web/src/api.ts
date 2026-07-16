@@ -9,6 +9,7 @@ import type {
     IUpdateRoomRequest,
     IRoomControlRequest,
     IScene,
+    ISceneStatus,
     ICreateSceneRequest,
     IUpdateSceneRequest
 } from '@zwave-service/contracts';
@@ -114,6 +115,11 @@ export const api = {
     //
     async listScenes(): Promise<IScene[]> {
         const res = await request<IScene[]>('/scenes');
+        return res.data ?? [];
+    },
+
+    async listSceneStatus(): Promise<ISceneStatus[]> {
+        const res = await request<ISceneStatus[]>('/scenes/status');
         return res.data ?? [];
     },
 

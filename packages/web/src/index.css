@@ -241,6 +241,18 @@ button:disabled:hover { border-color: var(--border); }
 
 .meta .sched { color: var(--accent); font-weight: 600; }
 
+/* Scene next/last run times */
+.run-times {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1rem;
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin: 0 0 0.6rem;
+}
+.run-times strong { color: var(--text); font-weight: 600; }
+.run-times .run-failed { color: #dc2626; font-weight: 600; }
+
 /* Rich device state */
 .power-badge {
     color: var(--accent);

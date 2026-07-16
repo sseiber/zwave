@@ -1,0 +1,23 @@
+{
+  "$id": "ISceneRunResult",
+  "$ref": "#/definitions/ISceneRunResult",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ISceneRunResult": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "succeeded": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "succeeded",
+        "message"
+      ],
+      "type": "object"
+    }
+  }
+}

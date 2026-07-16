@@ -28,6 +28,8 @@ export {
     ISceneDevice,
     IScene,
     ISceneParams,
+    ISceneRunResult,
+    ISceneStatus,
     ICreateSceneRequest,
     IUpdateSceneRequest
 } from '@zwave-service/contracts';
