@@ -1,0 +1,35 @@
+{
+  "$id": "IHealthCheckResult",
+  "$ref": "#/definitions/IHealthCheckResult",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IHealthCheckResult": {
+      "additionalProperties": false,
+      "properties": {
+        "failedPings": {
+          "type": "number"
+        },
+        "latencyMs": {
+          "type": "number"
+        },
+        "numNeighbors": {
+          "type": "number"
+        },
+        "rating": {
+          "type": "number"
+        },
+        "rssi": {
+          "type": "number"
+        },
+        "summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rating",
+        "summary"
+      ],
+      "type": "object"
+    }
+  }
+}

@@ -21,11 +21,32 @@
       ],
       "type": "string"
     },
+    "IDeviceBattery": {
+      "additionalProperties": false,
+      "properties": {
+        "isLow": {
+          "type": "boolean"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
     "IDeviceInfo": {
       "additionalProperties": false,
       "properties": {
+        "battery": {
+          "$ref": "#/definitions/IDeviceBattery"
+        },
+        "firmwareVersion": {
+          "type": "string"
+        },
         "level": {
           "type": "number"
+        },
+        "link": {
+          "$ref": "#/definitions/IDeviceLink"
         },
         "location": {
           "type": "string"
@@ -42,14 +63,23 @@
         "on": {
           "type": "boolean"
         },
+        "power": {
+          "$ref": "#/definitions/IDevicePower"
+        },
         "product": {
           "type": "string"
         },
         "ready": {
           "type": "boolean"
         },
+        "securityClass": {
+          "type": "string"
+        },
         "status": {
           "$ref": "#/definitions/DeviceStatus"
+        },
+        "targetLevel": {
+          "type": "number"
         },
         "type": {
           "$ref": "#/definitions/DeviceType"
@@ -63,6 +93,42 @@
         "status",
         "ready"
       ],
+      "type": "object"
+    },
+    "IDeviceLink": {
+      "additionalProperties": false,
+      "properties": {
+        "hops": {
+          "type": "number"
+        },
+        "lastSeen": {
+          "type": "string"
+        },
+        "rssi": {
+          "type": "number"
+        },
+        "rtt": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
+    "IDevicePower": {
+      "additionalProperties": false,
+      "properties": {
+        "amps": {
+          "type": "number"
+        },
+        "kWh": {
+          "type": "number"
+        },
+        "volts": {
+          "type": "number"
+        },
+        "watts": {
+          "type": "number"
+        }
+      },
       "type": "object"
     }
   }

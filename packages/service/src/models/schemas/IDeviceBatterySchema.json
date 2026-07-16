@@ -1,0 +1,19 @@
+{
+  "$id": "IDeviceBattery",
+  "$ref": "#/definitions/IDeviceBattery",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IDeviceBattery": {
+      "additionalProperties": false,
+      "properties": {
+        "isLow": {
+          "type": "boolean"
+        },
+        "level": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  }
+}

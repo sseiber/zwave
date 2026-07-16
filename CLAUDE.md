@@ -140,6 +140,10 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - `POST /exclusion/start`, `POST /exclusion/stop`
 - `GET /devices`, `GET /devices/:nodeId`
 - `POST /devices/:nodeId/control` `{ action: on|off|dim, level? }`
+- `POST /devices/:nodeId/health-check` — active lifeline health check (rating 0-10 + latency/rssi)
+- `GET /devices` items are capability-gated rich state: on/level/targetLevel, firmwareVersion,
+  securityClass, `power` (Meter CC), `link` (passive mesh stats: rssi/hops/rtt/lastSeen), `battery`.
+  Read in `zwaveController.describeNode`; the health check calls `node.checkLifelineHealth`.
 - `GET|POST /rooms`, `GET|PUT|DELETE /rooms/:roomId`, `POST /rooms/:roomId/control`
 - `GET|POST /scenes`, `GET|PUT|DELETE /scenes/:sceneId`, `POST /scenes/:sceneId/activate`
   - Scene shape: `{ id, name, roomId, trigger: manual|scheduled, schedule?, devices: [{ deviceId, action: on|off|dim, level? }] }`

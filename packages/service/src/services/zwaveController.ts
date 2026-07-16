@@ -7,11 +7,15 @@ import {
     InclusionStrategy,
     ZWaveNode
 } from 'zwave-js';
-import { CommandClasses, NodeStatus } from '@zwave-js/core';
+import { CommandClasses, NodeStatus, SecurityClass } from '@zwave-js/core';
 import {
     DeviceType,
     DeviceStatus,
     IDeviceInfo,
+    IDevicePower,
+    IDeviceLink,
+    IDeviceBattery,
+    IHealthCheckResult,
     InclusionStrategyOption
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
@@ -278,6 +282,55 @@ export class ZWaveController {
         await node.commandClasses['Multilevel Switch'].set(this.toZWaveLevel(level));
     }
 
+    // On-demand lifeline health check. This actively pings the device (a few rounds),
+    // so it is a deliberate action rather than something polled. Returns an overall
+    // rating plus the underlying latency/signal so a weak node can be spotted.
+    public async checkDeviceHealth(nodeId: number, rounds = 3): Promise<IHealthCheckResult> {
+        this.assertReady();
+
+        const node = this.getNode(nodeId);
+
+        this.server.log.info({ tags: [ControllerName] }, `Running lifeline health check for device ${nodeId} (${rounds} rounds)`);
+
+        const summary = await node.checkLifelineHealth(rounds);
+        const results = summary.results ?? [];
+
+        const latencies = results.map(result => result.latency).filter((value): value is number => typeof value === 'number');
+        const failedPings = results.reduce((total, result) => total + (result.failedPingsNode ?? 0), 0);
+        const lastResult = results.at(-1);
+
+        // rssi is not on every zwave-js version's result shape; read it defensively
+        const rssiValues = results
+            .map(result => (result as { rssi?: number }).rssi)
+            .filter((value): value is number => typeof value === 'number' && value < 0);
+
+        return {
+            rating: summary.rating,
+            summary: this.healthRatingText(summary.rating),
+            latencyMs: latencies.length > 0 ? Math.max(...latencies) : undefined,
+            failedPings,
+            numNeighbors: lastResult?.numNeighbors,
+            rssi: rssiValues.length > 0 ? Math.max(...rssiValues) : undefined
+        };
+    }
+
+    private healthRatingText(rating: number): string {
+        if (rating >= 9) {
+            return 'Excellent';
+        }
+        if (rating >= 7) {
+            return 'Good';
+        }
+        if (rating >= 5) {
+            return 'Acceptable';
+        }
+        if (rating >= 3) {
+            return 'Poor — consider a repeater or moving the device';
+        }
+
+        return 'Very poor — the device is barely reachable';
+    }
+
     //
     // Internal helpers
     //
@@ -328,6 +381,11 @@ export class ZWaveController {
                 info.level = this.fromZWaveLevel(level);
                 info.on = level > 0;
             }
+
+            const target = node.getValue({ commandClass: CommandClasses['Multilevel Switch'], property: 'targetValue' }) as number | undefined;
+            if (target !== undefined) {
+                info.targetLevel = this.fromZWaveLevel(target);
+            }
         }
         else if (type === DeviceType.Switch) {
             const on = node.getValue({ commandClass: CommandClasses['Binary Switch'], property: 'currentValue' }) as boolean | undefined;
@@ -336,7 +394,142 @@ export class ZWaveController {
             }
         }
 
+        // Everything below is capability-gated: only present if the device reports it.
+        // First-gen (non-Plus) devices in particular will populate few of these.
+        const firmwareVersion = node.firmwareVersion;
+        if (firmwareVersion) {
+            info.firmwareVersion = firmwareVersion;
+        }
+
+        const securityClass = this.securityClassLabel(node.getHighestSecurityClass());
+        if (securityClass) {
+            info.securityClass = securityClass;
+        }
+
+        const power = this.readPower(node);
+        if (power) {
+            info.power = power;
+        }
+
+        const link = this.readLink(node);
+        if (link) {
+            info.link = link;
+        }
+
+        const battery = this.readBattery(node);
+        if (battery) {
+            info.battery = battery;
+        }
+
         return info;
+    }
+
+    // Energy metering (Meter CC). Meter value IDs encode their scale in the propertyKey,
+    // so read the unit from each value's metadata rather than guessing propertyKeys.
+    private readPower(node: ZWaveNode): IDevicePower | undefined {
+        if (!node.supportsCC(CommandClasses.Meter)) {
+            return undefined;
+        }
+
+        const power: IDevicePower = {};
+        let found = false;
+
+        for (const valueId of node.getDefinedValueIDs()) {
+            if (valueId.commandClass !== CommandClasses.Meter || valueId.property !== 'value') {
+                continue;
+            }
+
+            const value = node.getValue(valueId);
+            if (typeof value !== 'number') {
+                continue;
+            }
+
+            const unit = (node.getValueMetadata(valueId) as { unit?: string }).unit;
+            switch (unit) {
+                case 'W':
+                    power.watts = value;
+                    found = true;
+                    break;
+                case 'kWh':
+                    power.kWh = value;
+                    found = true;
+                    break;
+                case 'V':
+                    power.volts = value;
+                    found = true;
+                    break;
+                case 'A':
+                    power.amps = value;
+                    found = true;
+                    break;
+
+                default:
+                    break;
+            }
+        }
+
+        return found ? power : undefined;
+    }
+
+    private readLink(node: ZWaveNode): IDeviceLink | undefined {
+        const stats = node.statistics;
+        const link: IDeviceLink = {};
+
+        if (node.lastSeen) {
+            link.lastSeen = node.lastSeen.toISOString();
+        }
+        if (typeof stats.rtt === 'number') {
+            link.rtt = stats.rtt;
+        }
+
+        // Real RSSI values are negative dBm; 125-127 are error/"not available" sentinels
+        const rssi = stats.rssi ?? stats.lwr?.rssi;
+        if (typeof rssi === 'number' && rssi < 0) {
+            link.rssi = rssi;
+        }
+        if (stats.lwr?.repeaters) {
+            link.hops = stats.lwr.repeaters.length;
+        }
+
+        return Object.keys(link).length > 0 ? link : undefined;
+    }
+
+    private readBattery(node: ZWaveNode): IDeviceBattery | undefined {
+        if (!node.supportsCC(CommandClasses.Battery)) {
+            return undefined;
+        }
+
+        const battery: IDeviceBattery = {};
+
+        const level = node.getValue({ commandClass: CommandClasses.Battery, property: 'level' }) as number | undefined;
+        if (typeof level === 'number') {
+            battery.level = level;
+        }
+
+        const isLow = node.getValue({ commandClass: CommandClasses.Battery, property: 'isLow' }) as boolean | undefined;
+        if (typeof isLow === 'boolean') {
+            battery.isLow = isLow;
+        }
+
+        return Object.keys(battery).length > 0 ? battery : undefined;
+    }
+
+    private securityClassLabel(securityClass: SecurityClass | undefined): string | undefined {
+        switch (securityClass) {
+            case SecurityClass.None:
+                return 'None (insecure)';
+            case SecurityClass.S2_Unauthenticated:
+                return 'S2 Unauthenticated';
+            case SecurityClass.S2_Authenticated:
+                return 'S2 Authenticated';
+            case SecurityClass.S2_AccessControl:
+                return 'S2 Access Control';
+            case SecurityClass.S0_Legacy:
+                return 'S0 Legacy';
+
+            default:
+                return undefined;
+        }
     }
 
     private mapNodeStatus(status: NodeStatus): DeviceStatus {

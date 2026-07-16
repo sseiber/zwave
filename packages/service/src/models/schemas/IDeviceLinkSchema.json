@@ -1,0 +1,25 @@
+{
+  "$id": "IDeviceLink",
+  "$ref": "#/definitions/IDeviceLink",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IDeviceLink": {
+      "additionalProperties": false,
+      "properties": {
+        "hops": {
+          "type": "number"
+        },
+        "lastSeen": {
+          "type": "string"
+        },
+        "rssi": {
+          "type": "number"
+        },
+        "rtt": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  }
+}

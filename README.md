@@ -106,13 +106,22 @@ After calling `start`, activate inclusion/exclusion on the physical device.
 
 ### Devices
 
-| Method | Route                      | Body                              |
-| ------ | -------------------------- | --------------------------------- |
-| GET    | `/devices`                 | list all included devices + state |
-| GET    | `/devices/:nodeId`         | one device                        |
-| POST   | `/devices/:nodeId/control` | `{ "action": "on"\|"off"\|"dim", "level"? }` |
+| Method | Route                           | Body                              |
+| ------ | ------------------------------- | --------------------------------- |
+| GET    | `/devices`                      | list all included devices + state |
+| GET    | `/devices/:nodeId`              | one device                        |
+| POST   | `/devices/:nodeId/control`      | `{ "action": "on"\|"off"\|"dim", "level"? }` |
+| POST   | `/devices/:nodeId/health-check` | actively pings the device; returns a link-health rating |
 
 `level` is `0-100` and required for `dim` (dimmers only).
+
+Each device includes the state the driver reports, **capability-gated** (present only
+if the device supports it — expect older/first-gen devices to report less):
+`on`, `level`, `targetLevel` (while ramping), `status`, `firmwareVersion`,
+`securityClass`, `power` (`watts`/`kWh`/`volts`/`amps`, from the Meter CC), `link`
+(`rssi`/`hops`/`rtt`/`lastSeen`, passive mesh stats), and `battery` (future battery
+devices). `link` fills in passively as the device is used; `health-check` returns a
+fresh, actively-measured `{ rating (0-10), latencyMs, failedPings, numNeighbors, rssi }`.
 
 ### Rooms (a named group of devices)
 

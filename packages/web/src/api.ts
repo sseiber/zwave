@@ -2,6 +2,7 @@ import type {
     IServiceResponse,
     IDeviceInfo,
     IDeviceControlRequest,
+    IHealthCheckResult,
     IInclusionRequest,
     IRoom,
     ICreateRoomRequest,
@@ -56,6 +57,11 @@ export const api = {
 
     controlDevice(nodeId: number, body: IDeviceControlRequest): Promise<IServiceResponse> {
         return post(`/devices/${nodeId}/control`, body);
+    },
+
+    async checkDeviceHealth(nodeId: number): Promise<IHealthCheckResult> {
+        const res = await request<IHealthCheckResult>(`/devices/${nodeId}/health-check`, { method: 'POST' });
+        return res.data as IHealthCheckResult;
     },
 
     //
