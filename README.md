@@ -66,9 +66,14 @@ Security (S2/S0) keys are generated on first run and saved to
 ## Web UI
 
 In the deployed image the service serves the React web client at the root URL —
-open `http://<host>:9094/` (e.g. `http://zwave:9094/`). It lists devices with live
-state and provides on/off/dim control and insecure inclusion. The API lives under
-`/api/v1`.
+open `http://<host>:9094/` (e.g. `http://zwave:9094/`). The API lives under `/api/v1`.
+
+Three tabs:
+
+- **Devices** — live device state, on/off/dim control, and insecure inclusion.
+- **Rooms** — create/edit rooms (name + device picker), all-on/all-off per room, delete.
+- **Scenes** — create/edit scenes (name, room, trigger, and per-device action:
+  on/off/dim level), plus **Activate** to test a scene immediately.
 
 ## API
 
@@ -117,18 +122,23 @@ After calling `start`, activate inclusion/exclusion on the physical device.
 | DELETE | `/rooms/:roomId`         | delete                                 |
 | POST   | `/rooms/:roomId/control` | `{ "action", "level"? }` applied to all devices in the room |
 
-### Scenes (devices set to specific levels)
+### Scenes (a named set of device actions, belonging to a room)
 
-| Method | Route                      | Body                                                    |
-| ------ | -------------------------- | ------------------------------------------------------- |
-| GET    | `/scenes`                  | list                                                    |
-| POST   | `/scenes`                  | `{ "name", "levels": [{ "deviceId", "level" }] }`       |
-| GET    | `/scenes/:sceneId`         | one scene                                               |
-| PUT    | `/scenes/:sceneId`         | `{ "name"?, "levels"? }`                                |
-| DELETE | `/scenes/:sceneId`         | delete                                                  |
-| POST   | `/scenes/:sceneId/activate`| set each device to its configured level                 |
+| Method | Route                      | Body                                                                              |
+| ------ | -------------------------- | --------------------------------------------------------------------------------- |
+| GET    | `/scenes`                  | list                                                                              |
+| POST   | `/scenes`                  | `{ "name", "roomId", "trigger", "devices": [{ "deviceId", "action", "level"? }] }` |
+| GET    | `/scenes/:sceneId`         | one scene                                                                         |
+| PUT    | `/scenes/:sceneId`         | `{ "name"?, "roomId"?, "trigger"?, "devices"? }`                                   |
+| DELETE | `/scenes/:sceneId`         | delete                                                                            |
+| POST   | `/scenes/:sceneId/activate`| apply each participating device's action                                          |
 
-Scene `level` is `0-100`; for a switch, any level > 0 turns it on.
+- `roomId` — the room the scene belongs to (required).
+- `trigger` — `manual` (activate on demand) or `scheduled`. **Scheduling is not
+  implemented yet**: a `scheduled` scene is stored as such but only runs when
+  activated manually.
+- `devices[].action` — `on` | `off` | `dim`. `level` (0-100) is required for `dim`
+  and applies to dimmers only.
 
 ### Health
 

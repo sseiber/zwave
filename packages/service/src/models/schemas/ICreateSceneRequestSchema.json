@@ -3,28 +3,47 @@
   "$ref": "#/definitions/ICreateSceneRequest",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
+    "DeviceAction": {
+      "enum": [
+        "on",
+        "off",
+        "dim"
+      ],
+      "type": "string"
+    },
     "ICreateSceneRequest": {
       "additionalProperties": false,
       "properties": {
-        "levels": {
+        "devices": {
           "items": {
-            "$ref": "#/definitions/ISceneLevel"
+            "$ref": "#/definitions/ISceneDevice"
           },
           "type": "array"
         },
         "name": {
           "type": "string"
+        },
+        "roomId": {
+          "type": "string"
+        },
+        "trigger": {
+          "$ref": "#/definitions/SceneTrigger"
         }
       },
       "required": [
         "name",
-        "levels"
+        "roomId",
+        "trigger",
+        "devices"
       ],
       "type": "object"
     },
-    "ISceneLevel": {
+    "ISceneDevice": {
       "additionalProperties": false,
       "properties": {
+        "action": {
+          "$ref": "#/definitions/DeviceAction"
+        },
         "deviceId": {
           "type": "number"
         },
@@ -34,9 +53,16 @@
       },
       "required": [
         "deviceId",
-        "level"
+        "action"
       ],
       "type": "object"
+    },
+    "SceneTrigger": {
+      "enum": [
+        "manual",
+        "scheduled"
+      ],
+      "type": "string"
     }
   }
 }
