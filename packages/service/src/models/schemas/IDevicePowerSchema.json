@@ -1,0 +1,25 @@
+{
+  "$id": "IDevicePower",
+  "$ref": "#/definitions/IDevicePower",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IDevicePower": {
+      "additionalProperties": false,
+      "properties": {
+        "amps": {
+          "type": "number"
+        },
+        "kWh": {
+          "type": "number"
+        },
+        "volts": {
+          "type": "number"
+        },
+        "watts": {
+          "type": "number"
+        }
+      },
+      "type": "object"
+    }
+  }
+}

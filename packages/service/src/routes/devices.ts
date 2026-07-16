@@ -150,6 +150,23 @@ const devicesRouterPlugin: FastifyPluginAsync<IDevicesRouterOptions> = async (se
                     return response.status(result.statusCode as 200).send(result);
                 }
             });
+
+            // On-demand mesh health check — actively pings the device, so it is a POST
+            serverRoute.route<{ Params: IDeviceParams; Reply: IServiceReply }>({
+                method: 'POST',
+                url: '/devices/:nodeId/health-check',
+                schema: {
+                    params: IDeviceParamsSchema,
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = await serverRoute.zwaveService.checkDeviceHealth(request.params.nodeId);
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
         }
         catch (ex) {
             serverRoute.log.error({ tags: [RouteName] }, `registering routes failed: ${exMessage(ex)}`);

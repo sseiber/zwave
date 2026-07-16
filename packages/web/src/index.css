@@ -240,3 +240,53 @@ button:disabled:hover { border-color: var(--border); }
 }
 
 .meta .sched { color: var(--accent); font-weight: 600; }
+
+/* Rich device state */
+.power-badge {
+    color: var(--accent);
+    font-weight: 600;
+}
+.signal { font-weight: 600; }
+.signal.s3 { color: var(--on); }
+.signal.s2 { color: var(--on); }
+.signal.s1 { color: var(--warn); }
+.signal.s0 { color: var(--muted); }
+
+.link-btn { font-size: 0.82rem; }
+
+.detail {
+    margin-top: 0.7rem;
+    padding-top: 0.7rem;
+    border-top: 1px dashed var(--border);
+}
+.detail-group { margin-top: 0.6rem; }
+.detail-group h4 {
+    margin: 0 0 0.3rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+}
+.detail dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.15rem 0.9rem;
+    margin: 0;
+    font-size: 0.86rem;
+}
+.detail dt { color: var(--muted); }
+.detail dd { margin: 0; }
+.detail .controls { margin-top: 0.55rem; }
+.detail .hint { margin: 0.45rem 0 0; font-size: 0.78rem; }
+
+.health {
+    font-size: 0.82rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 7px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+.health.r3, .health.r2 { color: var(--on); border-color: var(--on); }
+.health.r1 { color: var(--warn); border-color: var(--warn); }
+.health.r0 { color: #dc2626; border-color: #dc2626; }

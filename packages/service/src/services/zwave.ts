@@ -138,6 +138,22 @@ class ZWaveService {
         });
     }
 
+    public async checkDeviceHealth(nodeId: number): Promise<IServiceResponse> {
+        try {
+            const result = await this.controller.checkDeviceHealth(nodeId);
+
+            return {
+                succeeded: true,
+                statusCode: 200,
+                message: `Health check for device ${nodeId}: ${result.summary} (${result.rating}/10)`,
+                data: result
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`check health of device ${nodeId}`, ex);
+        }
+    }
+
     //
     // Room control - apply an action to a set of devices
     //

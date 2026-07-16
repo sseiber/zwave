@@ -41,6 +41,31 @@ export enum DeviceAction {
     Dim = 'dim'
 }
 
+// Energy metering (Meter CC). Fields are present only if the device reports them.
+export interface IDevicePower {
+    watts?: number;
+    kWh?: number;
+    volts?: number;
+    amps?: number;
+}
+
+// Passive mesh/link health, read from the driver's accumulated node statistics.
+// Values may be absent until the node has exchanged enough traffic. For an active
+// reading, use POST /devices/:nodeId/health-check.
+export interface IDeviceLink {
+    lastSeen?: string;   // ISO date-time
+    rtt?: number;        // round-trip time, ms
+    rssi?: number;       // signal of the last working route, dBm (negative; closer to 0 = stronger)
+    hops?: number;       // repeaters in the route (0 = direct to controller)
+}
+
+// Battery CC — not applicable to mains-powered switches/dimmers, included for
+// future battery devices (sensors, locks).
+export interface IDeviceBattery {
+    level?: number;      // percent
+    isLow?: boolean;
+}
+
 export interface IDeviceInfo {
     nodeId: number;
     name: string;
@@ -50,12 +75,30 @@ export interface IDeviceInfo {
     ready: boolean;
     on?: boolean;
     level?: number;
+    // While a dimmer is ramping, the target differs from the current `level`
+    targetLevel?: number;
     manufacturer?: string;
     product?: string;
+    firmwareVersion?: string;
+    // Human-readable security class the device joined with (e.g. 'None (insecure)')
+    securityClass?: string;
+    power?: IDevicePower;
+    link?: IDeviceLink;
+    battery?: IDeviceBattery;
 }
 
 export interface IDeviceParams {
     nodeId: number;
+}
+
+// Result of an on-demand lifeline health check (POST /devices/:nodeId/health-check).
+export interface IHealthCheckResult {
+    rating: number;       // 0 (worst) - 10 (best)
+    summary: string;      // human-readable interpretation of the rating
+    latencyMs?: number;
+    failedPings?: number;
+    numNeighbors?: number;
+    rssi?: number;        // dBm
 }
 
 export interface IDeviceControlRequest {
