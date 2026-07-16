@@ -1,7 +1,9 @@
 # Roadmap — richer device state, scheduler run times, dashboard
 
-Planned next batch of work, captured so it survives a context reset. **Not started.**
-Current shipped version is **1.3.0**. Build/deploy/git conventions are in
+**Status: all three features shipped.** Feature 1 (richer device state) landed in
+1.4.0; Feature 2 (scheduler next/last run times, `GET /scenes/status`) in 1.5.0;
+Feature 3 (Dashboard tab, default) in 1.6.0. Kept below as the design record.
+Build/deploy/git conventions are in
 [CLAUDE.md](../CLAUDE.md); the web UI lives in `packages/web`, the service in
 `packages/service`, shared types in `packages/contracts`.
 

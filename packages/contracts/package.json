@@ -1,6 +1,6 @@
 {
     "name": "@zwave-service/contracts",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "description": "Shared API types for the zwave-service (server) and web client",
     "type": "module",
     "main": "./dist/index.js",

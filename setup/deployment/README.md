@@ -119,7 +119,7 @@ path from step 5. A tuned service block:
 ```yaml
 services:
   zwave-service:
-    image: ghcr.io/sseiber/zwave-service:1.5.0     # pin the version
+    image: ghcr.io/sseiber/zwave-service:1.6.0     # pin the version
     container_name: zwave-service
     restart: unless-stopped
     devices:

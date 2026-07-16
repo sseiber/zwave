@@ -253,6 +253,77 @@ button:disabled:hover { border-color: var(--border); }
 .run-times strong { color: var(--text); font-weight: 600; }
 .run-times .run-failed { color: #dc2626; font-weight: 600; }
 
+/* Dashboard */
+.dash-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 0.75rem;
+    align-items: start;
+}
+.dash-card { padding: 0.9rem 1rem; }
+.dash-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; margin-bottom: 0.7rem; }
+.dash-card-head h3 { margin: 0; font-size: 1rem; }
+.dash-card h4 {
+    margin: 0 0 0.35rem;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+}
+
+.stats { display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; }
+.stat { display: flex; flex-direction: column; }
+.stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.stat-label { font-size: 0.74rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.stat.on .stat-value { color: var(--on); }
+.stat.bad .stat-value { color: #dc2626; }
+.stat.accent .stat-value { color: var(--accent); }
+
+.mesh-list, .room-quick, .sched-list { list-style: none; padding: 0; margin: 0; }
+.mesh-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.28rem 0;
+    font-size: 0.86rem;
+    border-bottom: 1px dashed var(--border);
+}
+.mesh-row:last-child { border-bottom: none; }
+.mesh-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mesh-signal { font-size: 0.8rem; font-weight: 600; }
+.mesh-seen { font-size: 0.78rem; }
+
+.dot { width: 0.6rem; height: 0.6rem; border-radius: 999px; background: var(--muted); }
+.dot.good { background: var(--on); }
+.dot.warn { background: var(--warn); }
+.dot.bad { background: #dc2626; }
+.dot.unknown { background: var(--border); }
+
+.room-quick-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.32rem 0;
+    border-bottom: 1px dashed var(--border);
+}
+.room-quick-row:last-child { border-bottom: none; }
+.room-quick-name { font-size: 0.88rem; }
+.room-quick-controls { display: flex; gap: 0.35rem; flex-shrink: 0; }
+.room-quick-controls button { padding: 0.3rem 0.6rem; font-size: 0.82rem; }
+
+.sched-group + .sched-group { margin-top: 0.7rem; }
+.sched-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.22rem 0;
+    font-size: 0.86rem;
+}
+.sched-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sched-when { flex-shrink: 0; font-weight: 600; }
+
 /* Rich device state */
 .power-badge {
     color: var(--accent);
