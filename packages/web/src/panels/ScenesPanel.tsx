@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import type { IDeviceInfo, IRoom, IScene, ISceneDevice } from '@zwave-service/contracts';
-import { DeviceAction, DeviceType, SceneTrigger } from '@zwave-service/contracts';
+import type { IDeviceInfo, IRoom, IScene, ISceneDevice, ISchedule } from '@zwave-service/contracts';
+import { DeviceAction, DeviceType, SceneTrigger, ScheduleKind } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
+import { defaultSchedule, describeSchedule } from '../schedule.ts';
+import { SchedulePicker } from './SchedulePicker.tsx';
 
 interface ScenesPanelProps {
     scenes: IScene[];
@@ -31,10 +33,10 @@ export function ScenesPanel({ scenes, rooms, devices, run, refresh }: ScenesPane
         }
     };
 
-    const save = async (name: string, roomId: string, trigger: SceneTrigger, sceneDevices: ISceneDevice[]): Promise<void> => {
+    const save = async (name: string, roomId: string, trigger: SceneTrigger, schedule: ISchedule | undefined, sceneDevices: ISceneDevice[]): Promise<void> => {
         const ok = editing === 'new'
-            ? await run(() => api.createScene({ name, roomId, trigger, devices: sceneDevices }), `Scene “${name}” created`)
-            : await run(() => api.updateScene((editing as IScene).id, { name, roomId, trigger, devices: sceneDevices }), `Scene “${name}” updated`);
+            ? await run(() => api.createScene({ name, roomId, trigger, schedule, devices: sceneDevices }), `Scene “${name}” created`)
+            : await run(() => api.updateScene((editing as IScene).id, { name, roomId, trigger, schedule, devices: sceneDevices }), `Scene “${name}” updated`);
 
         if (ok) {
             setEditing(null);
@@ -82,6 +84,9 @@ export function ScenesPanel({ scenes, rooms, devices, run, refresh }: ScenesPane
                                 <div className="meta">
                                     <span>{roomName(rooms, scene.roomId)}</span>
                                     <span>{scene.devices.length} device{scene.devices.length === 1 ? '' : 's'}</span>
+                                    {scene.trigger === SceneTrigger.Scheduled && (
+                                        <span className="sched">{describeSchedule(scene.schedule)}</span>
+                                    )}
                                 </div>
                                 <ul className="scene-actions">
                                     {scene.devices.map(d => (
@@ -122,7 +127,7 @@ interface SceneFormProps {
     rooms: IRoom[];
     devices: IDeviceInfo[];
     onCancel: () => void;
-    onSave: (name: string, roomId: string, trigger: SceneTrigger, devices: ISceneDevice[]) => Promise<void>;
+    onSave: (name: string, roomId: string, trigger: SceneTrigger, schedule: ISchedule | undefined, devices: ISceneDevice[]) => Promise<void>;
 }
 
 interface SelectedState {
@@ -134,6 +139,7 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
     const [name, setName] = useState(scene?.name ?? '');
     const [roomId, setRoomId] = useState(scene?.roomId ?? rooms[0]?.id ?? '');
     const [trigger, setTrigger] = useState<SceneTrigger>(scene?.trigger ?? SceneTrigger.Manual);
+    const [schedule, setSchedule] = useState<ISchedule>(scene?.schedule ?? defaultSchedule(ScheduleKind.Daily));
     const [selected, setSelected] = useState<Record<number, SelectedState>>(() => {
         const initial: Record<number, SelectedState> = {};
         scene?.devices.forEach(d => {
@@ -177,7 +183,7 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
             ...(state.action === DeviceAction.Dim ? { level: state.level } : {})
         }));
 
-        void onSave(name.trim(), roomId, trigger, sceneDevices);
+        void onSave(name.trim(), roomId, trigger, trigger === SceneTrigger.Scheduled ? schedule : undefined, sceneDevices);
     };
 
     return (
@@ -208,14 +214,12 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
                 <span>Trigger</span>
                 <select value={trigger} onChange={e => setTrigger(e.target.value as SceneTrigger)}>
                     <option value={SceneTrigger.Manual}>Manual — activate on demand</option>
-                    <option value={SceneTrigger.Scheduled}>Scheduled — at a set time (coming soon)</option>
+                    <option value={SceneTrigger.Scheduled}>Scheduled — run automatically</option>
                 </select>
             </label>
+
             {trigger === SceneTrigger.Scheduled && (
-                <p className="muted hint">
-                    Scheduling isn’t implemented yet — the scene is saved as scheduled but only runs when
-                    activated manually.
-                </p>
+                <SchedulePicker schedule={schedule} onChange={setSchedule} />
             )}
 
             <fieldset>

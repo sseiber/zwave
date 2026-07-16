@@ -119,7 +119,7 @@ path from step 5. A tuned service block:
 ```yaml
 services:
   zwave-service:
-    image: ghcr.io/sseiber/zwave-service:1.2.0     # pin the version
+    image: ghcr.io/sseiber/zwave-service:1.3.0     # pin the version
     container_name: zwave-service
     restart: unless-stopped
     devices:
@@ -132,6 +132,11 @@ services:
       - LOG_LEVEL=info
       - zwaveSerialPort=/dev/zwave
       - zwaveStorage=/rpi-zwave/data
+      # Scheduled scenes run on local wall-clock time - without TZ the container is UTC
+      - TZ=America/Los_Angeles
+      # Only needed for sunrise/sunset schedules
+      # - zwaveLatitude=47.6062
+      # - zwaveLongitude=-122.3321
     volumes:
       - zwave-data:/rpi-zwave/data
     ports:
@@ -171,8 +176,13 @@ curl http://localhost:9094/api/v1/devices            # new node appears
 ```
 
 Then open the **web UI** in a browser at `http://<pi-host>:9094/` (e.g.
-`http://zwave:9094/`) — it lists your devices with live state and provides
-on/off/dim control and insecure inclusion.
+`http://zwave:9094/`) — Devices (live state, on/off/dim, inclusion), Rooms, and
+Scenes (including schedules).
+
+> **Scheduling:** scheduled scenes fire on the container's local time, so set `TZ`
+> above. Sunrise/sunset schedules additionally need `zwaveLatitude`/`zwaveLongitude`;
+> without them the API rejects those schedules. On startup the scheduler logs the
+> timezone and location it resolved, and logs each scene's next run time.
 
 ## 8. Back up the volume (the important one)
 

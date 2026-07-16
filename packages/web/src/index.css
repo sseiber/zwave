@@ -191,3 +191,52 @@ button.danger { color: #dc2626; }
 button.danger:hover { border-color: #dc2626; }
 button:disabled { opacity: 0.5; cursor: not-allowed; }
 button:disabled:hover { border-color: var(--border); }
+
+/* Schedule picker */
+.schedule .kinds { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.7rem; }
+.schedule .row { display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.55rem; }
+.schedule .row.wrap { flex-wrap: wrap; }
+.schedule .lead { font-size: 0.8rem; color: var(--muted); min-width: 3rem; }
+.schedule select, .schedule input[type="time"], .schedule input[type="datetime-local"] {
+    font: inherit;
+    width: auto;
+    padding: 0.3rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg);
+    color: var(--text);
+}
+.schedule input.num {
+    font: inherit;
+    width: 4.2rem;
+    padding: 0.3rem 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg);
+    color: var(--text);
+}
+.schedule .unit { font-size: 0.8rem; color: var(--muted); margin-right: 0.2rem; }
+
+.chip {
+    padding: 0.28rem 0.6rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--muted);
+    font-size: 0.82rem;
+}
+.chip:hover { border-color: var(--accent); color: var(--text); }
+.chip.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.chip.day { min-width: 2.1rem; padding: 0.22rem 0.35rem; text-align: center; }
+.month-days { gap: 0.25rem; }
+
+.schedule .summary {
+    margin: 0.6rem 0 0;
+    padding-top: 0.5rem;
+    border-top: 1px dashed var(--border);
+    font-size: 0.84rem;
+    color: var(--text);
+    font-weight: 600;
+}
+
+.meta .sched { color: var(--accent); font-weight: 600; }

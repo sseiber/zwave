@@ -120,9 +120,66 @@ export interface IRoomControlRequest {
 export enum SceneTrigger {
     // Activated on demand, via the API or the web UI
     Manual = 'manual',
-    // Reserved: fires at a pre-determined time. Scheduling is not implemented yet,
-    // so a 'scheduled' scene currently only activates when triggered manually.
+    // Activated automatically by the scheduler, per the scene's `schedule`
     Scheduled = 'scheduled'
+}
+
+//
+// Scheduling
+//
+export enum ScheduleKind {
+    // Every N seconds/minutes/hours/days, from when the schedule was set
+    Interval = 'interval',
+    // Every day at a time of day
+    Daily = 'daily',
+    // On selected weekdays at a time of day
+    Weekly = 'weekly',
+    // On selected days of the month at a time of day
+    Monthly = 'monthly',
+    // Once, at a specific date and time
+    Once = 'once'
+}
+
+export enum IntervalUnit {
+    Seconds = 'seconds',
+    Minutes = 'minutes',
+    Hours = 'hours',
+    Days = 'days'
+}
+
+export enum TimeOfDayKind {
+    // A wall-clock time (see ITimeOfDay.time)
+    Clock = 'clock',
+    // Relative to sunrise/sunset for the configured latitude/longitude
+    Sunrise = 'sunrise',
+    Sunset = 'sunset'
+}
+
+// When during a day something happens: either a clock time, or an offset from a
+// solar event. Shared by the daily/weekly/monthly schedule kinds.
+export interface ITimeOfDay {
+    kind: TimeOfDayKind;
+    // 'HH:MM' (24h, local time) — required when kind is 'clock'
+    time?: string;
+    // Offset from the solar event in minutes: negative = before, positive = after,
+    // 0/omitted = at the event. Only used when kind is 'sunrise' or 'sunset'.
+    offsetMinutes?: number;
+}
+
+// All times are evaluated in the service's local timezone (set TZ in the container).
+export interface ISchedule {
+    kind: ScheduleKind;
+    // kind = 'interval'
+    every?: number;
+    unit?: IntervalUnit;
+    // kind = 'daily' | 'weekly' | 'monthly'
+    timeOfDay?: ITimeOfDay;
+    // kind = 'weekly': 0 (Sunday) - 6 (Saturday)
+    daysOfWeek?: number[];
+    // kind = 'monthly': 1 - 31 (days past the end of a month are skipped)
+    daysOfMonth?: number[];
+    // kind = 'once': ISO date-time
+    at?: string;
 }
 
 // A device participating in a scene, and what it should do when the scene activates
@@ -139,6 +196,8 @@ export interface IScene {
     // The room this scene belongs to
     roomId: string;
     trigger: SceneTrigger;
+    // Required when trigger is 'scheduled'; ignored otherwise
+    schedule?: ISchedule;
     devices: ISceneDevice[];
 }
 
@@ -150,6 +209,7 @@ export interface ICreateSceneRequest {
     name: string;
     roomId: string;
     trigger: SceneTrigger;
+    schedule?: ISchedule;
     devices: ISceneDevice[];
 }
 
@@ -157,5 +217,6 @@ export interface IUpdateSceneRequest {
     name?: string;
     roomId?: string;
     trigger?: SceneTrigger;
+    schedule?: ISchedule;
     devices?: ISceneDevice[];
 }

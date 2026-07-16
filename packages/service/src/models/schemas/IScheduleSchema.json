@@ -1,69 +1,8 @@
 {
-  "$id": "IScene",
-  "$ref": "#/definitions/IScene",
+  "$id": "ISchedule",
+  "$ref": "#/definitions/ISchedule",
   "$schema": "http://json-schema.org/draft-07/schema#",
   "definitions": {
-    "DeviceAction": {
-      "enum": [
-        "on",
-        "off",
-        "dim"
-      ],
-      "type": "string"
-    },
-    "IScene": {
-      "additionalProperties": false,
-      "properties": {
-        "devices": {
-          "items": {
-            "$ref": "#/definitions/ISceneDevice"
-          },
-          "type": "array"
-        },
-        "id": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "roomId": {
-          "type": "string"
-        },
-        "schedule": {
-          "$ref": "#/definitions/ISchedule"
-        },
-        "trigger": {
-          "$ref": "#/definitions/SceneTrigger"
-        }
-      },
-      "required": [
-        "id",
-        "name",
-        "roomId",
-        "trigger",
-        "devices"
-      ],
-      "type": "object"
-    },
-    "ISceneDevice": {
-      "additionalProperties": false,
-      "properties": {
-        "action": {
-          "$ref": "#/definitions/DeviceAction"
-        },
-        "deviceId": {
-          "type": "number"
-        },
-        "level": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "deviceId",
-        "action"
-      ],
-      "type": "object"
-    },
     "ISchedule": {
       "additionalProperties": false,
       "properties": {
@@ -124,13 +63,6 @@
         "minutes",
         "hours",
         "days"
-      ],
-      "type": "string"
-    },
-    "SceneTrigger": {
-      "enum": [
-        "manual",
-        "scheduled"
       ],
       "type": "string"
     },
