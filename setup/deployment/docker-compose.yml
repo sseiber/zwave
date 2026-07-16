@@ -24,6 +24,11 @@ services:
       - NODE_ENV=production
       - LOG_LEVEL=info
       - PORT=9094
+      # Scheduled scenes use local wall-clock time - set this or schedules run in UTC
+      - TZ=America/Los_Angeles
+      # Only needed for sunrise/sunset schedules
+      # - zwaveLatitude=47.6062
+      # - zwaveLongitude=-122.3321
       - zwaveStorage=/rpi-zwave/data
       - zwaveSerialPort=/dev/zwave
     ports:

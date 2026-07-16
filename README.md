@@ -56,6 +56,9 @@ provided.
 | `zwaveStorage`    | `/rpi-zwave/data`   | Directory for the network cache, security keys, and rooms/scenes JSON |
 | `zwaveSerialPort` | `/dev/ttyACM0`      | Serial device path for the Z-Stick                     |
 | `webClientRoot`   | `/app/web`          | Directory of the built SPA to serve; API-only if it has no `index.html` |
+| `TZ`              | `UTC`               | **Set this** — scheduled scenes use local wall-clock time (e.g. `America/Los_Angeles`) |
+| `zwaveLatitude`   | –                   | Latitude, only needed for sunrise/sunset schedules                     |
+| `zwaveLongitude`  | –                   | Longitude, only needed for sunrise/sunset schedules                    |
 
 Security (S2/S0) keys are generated on first run and saved to
 `${zwaveStorage}/securityKeys.json`. They may be overridden with the env vars
@@ -134,11 +137,38 @@ After calling `start`, activate inclusion/exclusion on the physical device.
 | POST   | `/scenes/:sceneId/activate`| apply each participating device's action                                          |
 
 - `roomId` — the room the scene belongs to (required).
-- `trigger` — `manual` (activate on demand) or `scheduled`. **Scheduling is not
-  implemented yet**: a `scheduled` scene is stored as such but only runs when
-  activated manually.
+- `trigger` — `manual` (activate on demand) or `scheduled` (run automatically by the
+  scheduler). A `scheduled` scene requires a valid `schedule`; invalid ones are
+  rejected with a 400 rather than silently never firing.
 - `devices[].action` — `on` | `off` | `dim`. `level` (0-100) is required for `dim`
   and applies to dimmers only.
+
+#### Schedules
+
+`schedule.kind` is one of:
+
+| Kind | Fields | Example |
+| ---- | ------ | ------- |
+| `interval` | `every`, `unit` (`seconds`\|`minutes`\|`hours`\|`days`) | `{ "kind": "interval", "every": 30, "unit": "minutes" }` |
+| `daily` | `timeOfDay` | `{ "kind": "daily", "timeOfDay": { "kind": "clock", "time": "19:00" } }` |
+| `weekly` | `daysOfWeek` (0=Sun…6=Sat), `timeOfDay` | `{ "kind": "weekly", "daysOfWeek": [1,5], "timeOfDay": { "kind": "sunset" } }` |
+| `monthly` | `daysOfMonth` (1-31), `timeOfDay` | `{ "kind": "monthly", "daysOfMonth": [1,15], "timeOfDay": { "kind": "clock", "time": "06:00" } }` |
+| `once` | `at` (ISO date-time, must be future) | `{ "kind": "once", "at": "2026-07-20T08:00:00Z" }` |
+
+`timeOfDay` is either a wall-clock time or a solar event with an optional offset:
+
+- `{ "kind": "clock", "time": "19:00" }` — 24h local time
+- `{ "kind": "sunrise" | "sunset", "offsetMinutes": -30 }` — negative = before,
+  positive = after, `0`/omitted = at the event
+
+Notes:
+
+- All times are evaluated in the **service's local timezone** — set `TZ` in the
+  container, or "19:00" means 19:00 UTC.
+- Sunrise/sunset requires `zwaveLatitude` / `zwaveLongitude`; without them, such
+  schedules are rejected at creation.
+- Days past the end of a short month are skipped (a `monthly` on the 31st runs only
+  in months that have one).
 
 ### Health
 

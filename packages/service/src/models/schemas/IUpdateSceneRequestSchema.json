@@ -30,6 +30,60 @@
       ],
       "type": "object"
     },
+    "ISchedule": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "daysOfMonth": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "daysOfWeek": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "every": {
+          "type": "number"
+        },
+        "kind": {
+          "$ref": "#/definitions/ScheduleKind"
+        },
+        "timeOfDay": {
+          "$ref": "#/definitions/ITimeOfDay"
+        },
+        "unit": {
+          "$ref": "#/definitions/IntervalUnit"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "ITimeOfDay": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/TimeOfDayKind"
+        },
+        "offsetMinutes": {
+          "type": "number"
+        },
+        "time": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
     "IUpdateSceneRequest": {
       "additionalProperties": false,
       "properties": {
@@ -45,16 +99,46 @@
         "roomId": {
           "type": "string"
         },
+        "schedule": {
+          "$ref": "#/definitions/ISchedule"
+        },
         "trigger": {
           "$ref": "#/definitions/SceneTrigger"
         }
       },
       "type": "object"
     },
+    "IntervalUnit": {
+      "enum": [
+        "seconds",
+        "minutes",
+        "hours",
+        "days"
+      ],
+      "type": "string"
+    },
     "SceneTrigger": {
       "enum": [
         "manual",
         "scheduled"
+      ],
+      "type": "string"
+    },
+    "ScheduleKind": {
+      "enum": [
+        "interval",
+        "daily",
+        "weekly",
+        "monthly",
+        "once"
+      ],
+      "type": "string"
+    },
+    "TimeOfDayKind": {
+      "enum": [
+        "clock",
+        "sunrise",
+        "sunset"
       ],
       "type": "string"
     }

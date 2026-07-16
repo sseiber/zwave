@@ -49,20 +49,33 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - Wraps the controller and returns the common `IServiceResponse` envelope
    - Registers an `onClose` hook to destroy the driver on shutdown
 
-4. **Room/Scene Store** (`services/store.ts`)
+4. **Scheduler** (`services/scheduler.ts` + `services/schedule.ts`)
+   - `scheduler.ts` is a `fastify-plugin` that ticks every 1s, planning/firing scenes
+     whose `trigger` is `scheduled`. It re-reads the in-memory scene list each tick, so
+     create/update/delete need no change hooks; a schedule's JSON is its signature, and
+     an edited schedule is re-planned. Fires via `zwaveService.applyScene`.
+   - `schedule.ts` (named exports only) holds `computeNextRun` / `validateSchedule` /
+     `getGeoLocation`. Solar times come from `suncalc`. All math is local-time.
+
+5. **Room/Scene Store** (`services/store.ts`)
    - `fastify-plugin` decorating `server.store`
    - Persists rooms and scenes as JSON in the storage volume (`rooms.json`, `scenes.json`)
    - Atomic writes (temp file + rename)
 
-5. **Configuration** (`plugins/config.ts`)
+6. **Configuration** (`plugins/config.ts`)
    - `env-schema` over `./configs/${NODE_ENV}.env` + `process.env`
    - Ensures the storage directory exists; decorates `server.config`
 
-6. **Web Client serving** (`plugins/webClient.ts`)
+7. **Web Client serving** (`plugins/webClient.ts`)
    - `@fastify/static` serves the built SPA from `webClientRoot` (default `/app/web`)
      at `/`, with a SPA fallback (non-API GETs return `index.html`; `/api/*` stays JSON)
    - Skipped if no `index.html` is found there, so local dev stays API-only while the
      web client runs from the Vite dev server
+
+8. **JSON body parser** (`plugins/jsonBodyParser.ts`, named export)
+   - Replaces Fastify's default JSON parser so an empty body with
+     `content-type: application/json` parses to `{}` instead of erroring. Route schemas
+     still decide validity; malformed JSON is still a 400.
 
 ## Plugin Registration Flow
 
@@ -111,6 +124,9 @@ npm run dockerbuild      # build (and push) the multi-arch image
 - `zwaveSerialPort` (default `/dev/ttyACM0`)
 - `webClientRoot` (default `/app/web`) — dir of the built SPA to serve; if it has no
   `index.html` the service runs API-only
+- `TZ` — **must be set** for scheduling; schedules use local wall-clock time (UTC otherwise)
+- `zwaveLatitude` / `zwaveLongitude` — read straight from `process.env` (like the
+  security keys, not via the config schema); only needed for sunrise/sunset schedules
 - Optional key overrides: `ZWAVE_S0_LEGACY_KEY`, `ZWAVE_S2_UNAUTHENTICATED_KEY`,
   `ZWAVE_S2_AUTHENTICATED_KEY`, `ZWAVE_S2_ACCESS_CONTROL_KEY`,
   `ZWAVE_LR_S2_AUTHENTICATED_KEY`, `ZWAVE_LR_S2_ACCESS_CONTROL_KEY`
@@ -126,9 +142,9 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - `POST /devices/:nodeId/control` `{ action: on|off|dim, level? }`
 - `GET|POST /rooms`, `GET|PUT|DELETE /rooms/:roomId`, `POST /rooms/:roomId/control`
 - `GET|POST /scenes`, `GET|PUT|DELETE /scenes/:sceneId`, `POST /scenes/:sceneId/activate`
-  - Scene shape: `{ id, name, roomId, trigger: manual|scheduled, devices: [{ deviceId, action: on|off|dim, level? }] }`
-  - `trigger: scheduled` is stored but **scheduling is not implemented** — such scenes
-    only run when activated manually. Adding it means a scheduler + a time field.
+  - Scene shape: `{ id, name, roomId, trigger: manual|scheduled, schedule?, devices: [{ deviceId, action: on|off|dim, level? }] }`
+  - `trigger: scheduled` requires a valid `schedule`; the route rejects bad ones (400)
+    rather than letting them silently never fire.
 
 ## Hardware Requirements
 

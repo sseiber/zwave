@@ -13,9 +13,12 @@ import {
     ICreateSceneRequest,
     ICreateSceneRequestSchema,
     IUpdateSceneRequest,
-    IUpdateSceneRequestSchema
+    IUpdateSceneRequestSchema,
+    ISchedule,
+    SceneTrigger
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
+import { getGeoLocation, validateSchedule } from '../services/schedule.js';
 import { ServiceName as StoreServiceName } from '../services/store.js';
 import { ServiceName as ZWaveServiceName } from '../services/zwave.js';
 
@@ -26,6 +29,16 @@ const responseSchema = {
     '4xx': IServiceErrorMessageSchema,
     '5xx': IServiceErrorMessageSchema
 };
+
+// A scheduled scene needs a schedule the scheduler can actually plan, so reject a
+// bad one at the API rather than silently never firing. Returns an error message.
+function scheduleError(trigger: SceneTrigger | undefined, schedule: ISchedule | undefined): string | undefined {
+    if (trigger !== SceneTrigger.Scheduled) {
+        return undefined;
+    }
+
+    return validateSchedule(schedule, getGeoLocation());
+}
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 export interface IScenesRouterOptions { }
@@ -66,6 +79,11 @@ const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (serv
                 },
                 handler: async (request, response) => {
                     serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const invalid = scheduleError(request.body.trigger, request.body.schedule);
+                    if (invalid) {
+                        throw serverRoute.httpErrors.badRequest(invalid);
+                    }
 
                     const scene = await serverRoute.store.createScene(request.body);
 
@@ -116,6 +134,20 @@ const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (serv
                 },
                 handler: async (request, response) => {
                     serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const existing = serverRoute.store.getScene(request.params.sceneId);
+                    if (!existing) {
+                        throw serverRoute.httpErrors.notFound(`No scene found with id ${request.params.sceneId}`);
+                    }
+
+                    // Validate against the scene as it will be once the patch is applied
+                    const invalid = scheduleError(
+                        request.body.trigger ?? existing.trigger,
+                        request.body.schedule ?? existing.schedule
+                    );
+                    if (invalid) {
+                        throw serverRoute.httpErrors.badRequest(invalid);
+                    }
 
                     const scene = await serverRoute.store.updateScene(request.params.sceneId, request.body);
                     if (!scene) {

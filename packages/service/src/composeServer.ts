@@ -8,6 +8,7 @@ import { resolve as pathResolve } from 'node:path';
 import configPlugin from './plugins/config.js';
 import showRoutesPlugin from './plugins/showRoutes.js';
 import webClientPlugin from './plugins/webClient.js';
+import { registerJsonBodyParser } from './plugins/jsonBodyParser.js';
 import { getDirname, exMessage } from './utils/index.js';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -18,6 +19,8 @@ const ModuleName = 'ComposeServer';
 const composeServer = async (options: composeOptions = {}): Promise<FastifyInstance> => {
     try {
         const server = fastify(options);
+
+        registerJsonBodyParser(server);
 
         server.log.info({ tags: [ModuleName] }, `Registering plugins`);
 

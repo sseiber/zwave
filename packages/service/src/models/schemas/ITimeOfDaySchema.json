@@ -1,0 +1,33 @@
+{
+  "$id": "ITimeOfDay",
+  "$ref": "#/definitions/ITimeOfDay",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ITimeOfDay": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/definitions/TimeOfDayKind"
+        },
+        "offsetMinutes": {
+          "type": "number"
+        },
+        "time": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "TimeOfDayKind": {
+      "enum": [
+        "clock",
+        "sunrise",
+        "sunset"
+      ],
+      "type": "string"
+    }
+  }
+}
