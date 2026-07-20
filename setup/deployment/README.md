@@ -186,17 +186,123 @@ Scenes (including schedules).
 
 ## 8. Back up the volume (the important one)
 
-The `zwave-data` volume holds `securityKeys.json`, the Z-Wave network cache, and
-your rooms/scenes. **If you lose it, you lose the pairing to every device and must
-re-include them all.** Snapshot it periodically and copy it off-box:
+The data volume holds `securityKeys.json`, the Z-Wave network cache, and your
+rooms/scenes. **If you lose it, you lose the pairing to every device and must
+re-include them all.** Snapshot it periodically and copy it off-box.
+
+Always back up **through the container** (`--volumes-from`), never by naming the
+volume:
+
+> **Why not `-v zwave-data:/data`?** Compose prefixes named volumes with the project
+> name, so the real volume is `<project>_zwave-data` (e.g. `zwave_zwave-data` — the
+> project defaults to the directory holding this compose file, and can be overridden
+> with `-p` / `COMPOSE_PROJECT_NAME`). Referring to the bare name `zwave-data` does
+> **not** error — Docker silently creates a new, empty volume and you get an empty
+> backup that only fails when you try to restore it. `--volumes-from zwave-service`
+> borrows the container's own mounts, so the volume's name is irrelevant.
+>
+> For reference, the volume is on disk at
+> `/var/lib/docker/volumes/<project>_zwave-data/_data` (root-owned).
+
+### Routine backup — live, no downtime (recommended)
+
+Use [`zwave-backup.sh`](zwave-backup.sh). It runs against the **running** container,
+so the service never stops and scheduled scenes keep firing:
 
 ```bash
-docker run --rm -v zwave-data:/data -v "$PWD":/backup alpine \
-  tar czf /backup/zwave-data-$(date +%F).tgz -C /data .
+./zwave-backup.sh                     # -> ~/zwave-backups
+./zwave-backup.sh /mnt/usb/zwave      # or an explicit destination
+KEEP=14 ./zwave-backup.sh             # retain 14 archives (default 8)
 ```
 
-A weekly cron job is plenty. To restore, extract the tarball back into a fresh
-`zwave-data` volume before starting the container.
+The script writes to a `.partial` file and renames only on success, refuses to keep
+an archive that doesn't contain `securityKeys.json` (which would mean it grabbed the
+wrong or an empty volume), and prunes old archives beyond `KEEP`.
+
+This is safe hot because of how the files are written:
+
+| File | Hot-copy safety |
+|---|---|
+| `securityKeys.json` | Written once at first start, never again — zero risk |
+| `rooms.json`, `scenes.json`, `sceneRuns.json` | Atomic writes (temp file + rename) — always a complete file |
+| `cache/` | The only part that could catch a mid-write moment |
+
+The keys — the genuinely irreplaceable part — are the safest thing to copy live. A
+worst-case torn `cache/` costs a re-interview of the mesh, not your pairings.
+
+### Pre-upgrade snapshot — stopped, cache guaranteed consistent
+
+Before an image upgrade or anything else risky, take a cold snapshot so `cache/` is
+quiesced too:
+
+```bash
+docker compose stop
+./zwave-backup.sh ~/zwave-backups     # --volumes-from works on a stopped container
+docker compose start
+```
+
+> ⚠️ **Stopping the service skips any scheduled scene due during the window — there
+> is no catch-up.** On restart the scheduler re-plans every scene from *now* and
+> deliberately does not fire on that first planning tick, so a scene due at 19:00
+> during a 18:58–19:02 stop simply never runs. Take cold snapshots at a quiet hour.
+>
+> Two more things to expect: restart isn't instant (the controller re-interviews
+> before the API accepts connections), and `restart: unless-stopped` **remembers an
+> explicit stop** — the container will not come back on reboot until you
+> `docker compose start` it.
+
+### Schedule it with cron
+
+Install the script and add a weekly job. Cron needs an absolute path to the script,
+and the running user must be in the `docker` group (step 4 above):
+
+```bash
+sudo install -m 0755 zwave-backup.sh /usr/local/bin/zwave-backup.sh
+crontab -e                 # your user's crontab, NOT root's — root isn't in docker group
+```
+
+Add one line — 03:30 every Sunday, logging to a file. Cron sets `$HOME`, so it
+expands to the invoking user's home:
+
+```cron
+30 3 * * 0 /usr/local/bin/zwave-backup.sh $HOME/zwave-backups >> $HOME/zwave-backup.log 2>&1
+```
+
+Always run it by hand once before trusting the schedule — that catches permission
+and PATH problems immediately rather than silently a week later:
+
+```bash
+/usr/local/bin/zwave-backup.sh ~/zwave-backups   # should end with "done"
+tail ~/zwave-backup.log                          # check again after the first cron run
+```
+
+**To pause or stop the cron job:**
+
+```bash
+crontab -l                 # list current jobs
+crontab -e                 # comment out the line with '#' to pause, or delete it to remove
+```
+
+`crontab -r` removes *all* of your cron jobs, so prefer editing. To confirm it's gone,
+`crontab -l` should no longer list `zwave-backup.sh`.
+
+### Restore
+
+Use `stop` (not `down`) so the container still exists for `--volumes-from`:
+
+```bash
+docker compose stop
+docker run --rm --volumes-from zwave-service -v ~/zwave-backups:/backup alpine \
+  sh -c 'rm -rf /rpi-zwave/data/* && tar xzf /backup/zwave-data-YYYY-MM-DD-HHMMSS.tgz -C /rpi-zwave/data'
+docker compose start
+```
+
+Verify any archive before trusting it — this should list `securityKeys.json` and
+`cache/`:
+
+```bash
+tar tzf ~/zwave-backups/zwave-data-*.tgz | head
+```
 
 ## Operational notes
 
