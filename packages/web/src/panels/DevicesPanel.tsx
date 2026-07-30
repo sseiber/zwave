@@ -49,7 +49,7 @@ export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
                 : (
                     <ul className="cards">
                         {devices.map(device => (
-                            <DeviceCard key={device.nodeId} device={device} onControl={control} run={run} />
+                            <DeviceCard key={device.nodeId} device={device} onControl={control} run={run} refresh={refresh} />
                         ))}
                     </ul>
                 )}
@@ -61,9 +61,10 @@ interface DeviceCardProps {
     device: IDeviceInfo;
     onControl: (nodeId: number, action: DeviceAction, level?: number) => Promise<void>;
     run: RunFn;
+    refresh: () => Promise<void>;
 }
 
-function DeviceCard({ device, onControl, run }: DeviceCardProps) {
+function DeviceCard({ device, onControl, run, refresh }: DeviceCardProps) {
     const isDimmer = device.type === DeviceType.Dimmer;
     const [level, setLevel] = useState(device.level ?? 0);
     const [open, setOpen] = useState(false);
@@ -112,17 +113,67 @@ function DeviceCard({ device, onControl, run }: DeviceCardProps) {
                 </button>
             </div>
 
-            {open && <DeviceDetail device={device} run={run} />}
+            {open && <DeviceDetail device={device} run={run} refresh={refresh} />}
         </li>
+    );
+}
+
+// Inline device rename. The name lives in the zwave-js cache, so an empty value
+// clears it and the card falls back to "Node <id>".
+function RenameRow({ device, run, refresh }: { device: IDeviceInfo; run: RunFn; refresh: () => Promise<void> }) {
+    const [name, setName] = useState(device.name ?? '');
+    const [saving, setSaving] = useState(false);
+
+    // Keep the field in sync if polling brings a name changed elsewhere
+    useEffect(() => {
+        setName(device.name ?? '');
+    }, [device.name]);
+
+    const dirty = name.trim() !== (device.name ?? '').trim();
+
+    const save = async (): Promise<void> => {
+        if (!dirty || saving) {
+            return;
+        }
+        setSaving(true);
+        try {
+            const trimmed = name.trim();
+            if (await run(() => api.renameDevice(device.nodeId, trimmed), trimmed ? `Renamed to “${trimmed}”` : 'Name cleared')) {
+                await refresh();
+            }
+        }
+        finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <form
+            className="rename"
+            onSubmit={e => { e.preventDefault(); void save(); }}
+        >
+            <label>
+                <span>Name</span>
+                <input
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder={`Node ${device.nodeId}`}
+                    aria-label={`Name for node ${device.nodeId}`}
+                    maxLength={62}
+                />
+            </label>
+            <button type="submit" disabled={!dirty || saving}>{saving ? 'Saving…' : 'Rename'}</button>
+        </form>
     );
 }
 
 interface DeviceDetailProps {
     device: IDeviceInfo;
     run: RunFn;
+    refresh: () => Promise<void>;
 }
 
-function DeviceDetail({ device, run }: DeviceDetailProps) {
+function DeviceDetail({ device, run, refresh }: DeviceDetailProps) {
     const [health, setHealth] = useState<IHealthCheckResult | null>(null);
     const [checking, setChecking] = useState(false);
 
@@ -148,6 +199,8 @@ function DeviceDetail({ device, run }: DeviceDetailProps) {
 
     return (
         <div className="detail">
+            <RenameRow device={device} run={run} refresh={refresh} />
+
             <dl>
                 {device.manufacturer && <Row label="Manufacturer" value={device.manufacturer} />}
                 {device.product && <Row label="Product" value={device.product} />}

@@ -12,6 +12,7 @@ export {
     IHealthCheckResult,
     IDeviceParams,
     IDeviceControlRequest,
+    IUpdateDeviceRequest,
     InclusionStrategyOption,
     IInclusionRequest,
     IRoom,
@@ -37,6 +38,7 @@ export {
 import IServiceResponseSchemaRaw from './schemas/IServiceResponseSchema.json' with { type: 'json' };
 import IServiceErrorMessageSchemaRaw from './schemas/IServiceErrorMessageSchema.json' with { type: 'json' };
 import IDeviceControlRequestSchemaRaw from './schemas/IDeviceControlRequestSchema.json' with { type: 'json' };
+import IUpdateDeviceRequestSchemaRaw from './schemas/IUpdateDeviceRequestSchema.json' with { type: 'json' };
 import IDeviceParamsSchemaRaw from './schemas/IDeviceParamsSchema.json' with { type: 'json' };
 import IInclusionRequestSchemaRaw from './schemas/IInclusionRequestSchema.json' with { type: 'json' };
 import ICreateRoomRequestSchemaRaw from './schemas/ICreateRoomRequestSchema.json' with { type: 'json' };
@@ -61,6 +63,7 @@ function stripSchemaId(schema: Record<string, any>): Record<string, any> {
 const IServiceResponseSchema = stripSchemaId(IServiceResponseSchemaRaw);
 const IServiceErrorMessageSchema = stripSchemaId(IServiceErrorMessageSchemaRaw);
 const IDeviceControlRequestSchema = stripSchemaId(IDeviceControlRequestSchemaRaw);
+const IUpdateDeviceRequestSchema = stripSchemaId(IUpdateDeviceRequestSchemaRaw);
 const IDeviceParamsSchema = stripSchemaId(IDeviceParamsSchemaRaw);
 const IInclusionRequestSchema = stripSchemaId(IInclusionRequestSchemaRaw);
 const ICreateRoomRequestSchema = stripSchemaId(ICreateRoomRequestSchemaRaw);
@@ -75,6 +78,7 @@ export {
     IServiceResponseSchema,
     IServiceErrorMessageSchema,
     IDeviceControlRequestSchema,
+    IUpdateDeviceRequestSchema,
     IDeviceParamsSchema,
     IInclusionRequestSchema,
     ICreateRoomRequestSchema,

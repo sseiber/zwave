@@ -130,6 +130,22 @@ class ZWaveService {
         }
     }
 
+    public setDeviceName(nodeId: number, name: string): IServiceResponse {
+        try {
+            const device = this.controller.setDeviceName(nodeId, name);
+
+            return {
+                succeeded: true,
+                statusCode: 200,
+                message: device.name ? `Device ${nodeId} renamed to '${device.name}'` : `Device ${nodeId} name cleared`,
+                data: device
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`rename device ${nodeId}`, ex);
+        }
+    }
+
     public async controlDevice(nodeId: number, action: DeviceAction, level?: number): Promise<IServiceResponse> {
         return this.run(`control device ${nodeId} (${action})`, async () => {
             await this.applyAction(nodeId, action, level);

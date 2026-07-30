@@ -142,6 +142,9 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - `POST /inclusion/start` `{ strategy?, secure?, pin? }` (`secure: false` forces insecure/no-S2 inclusion, overriding `strategy`), `POST /inclusion/stop`
 - `POST /exclusion/start`, `POST /exclusion/stop`
 - `GET /devices`, `GET /devices/:nodeId`
+- `PUT /devices/:nodeId` `{ name }` — rename a device; the name is stored in the
+  zwave-js network cache (not on the device), so it survives restarts with the storage
+  volume. Empty string clears it (UI falls back to `Node <id>`).
 - `POST /devices/:nodeId/control` `{ action: on|off|dim, level? }`
 - `POST /devices/:nodeId/health-check` — active lifeline health check (rating 0-10 + latency/rssi)
 - `GET /devices` items are capability-gated rich state: on/level/targetLevel, firmwareVersion,

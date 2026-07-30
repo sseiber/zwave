@@ -282,6 +282,21 @@ export class ZWaveController {
         await node.commandClasses['Multilevel Switch'].set(this.toZWaveLevel(level));
     }
 
+    // Rename a device. zwave-js stores node.name in the network cache (it is not
+    // written to the device), so it persists across restarts with the storage volume.
+    // An empty/whitespace name clears it, and callers fall back to "Node <id>".
+    public setDeviceName(nodeId: number, name: string): IDeviceInfo {
+        this.assertReady();
+
+        const node = this.getNode(nodeId);
+
+        node.name = name.trim();
+
+        this.server.log.info({ tags: [ControllerName] }, `Renamed device ${nodeId} to '${node.name}'`);
+
+        return this.describeNode(node);
+    }
+
     // On-demand lifeline health check. This actively pings the device (a few rounds),
     // so it is a deliberate action rather than something polled. Returns an overall
     // rating plus the underlying latency/signal so a weak node can be spotted.

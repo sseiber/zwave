@@ -60,6 +60,10 @@ export const api = {
         return post(`/devices/${nodeId}/control`, body);
     },
 
+    renameDevice(nodeId: number, name: string): Promise<IServiceResponse> {
+        return request(`/devices/${nodeId}`, { method: 'PUT', body: JSON.stringify({ name }) });
+    },
+
     async checkDeviceHealth(nodeId: number): Promise<IHealthCheckResult> {
         const res = await request<IHealthCheckResult>(`/devices/${nodeId}/health-check`, { method: 'POST' });
         return res.data as IHealthCheckResult;
