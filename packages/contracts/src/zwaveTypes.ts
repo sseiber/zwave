@@ -107,6 +107,13 @@ export interface IDeviceControlRequest {
     level?: number;
 }
 
+// Rename a device. The name is stored in the zwave-js network cache (not on the
+// device), so it persists across restarts as long as the storage volume survives.
+// An empty string clears the name, and the UI falls back to "Node <id>".
+export interface IUpdateDeviceRequest {
+    name: string;
+}
+
 //
 // Inclusion / Exclusion
 //

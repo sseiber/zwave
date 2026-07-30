@@ -12,7 +12,9 @@ import {
     IDeviceParams,
     IDeviceParamsSchema,
     IDeviceControlRequest,
-    IDeviceControlRequestSchema
+    IDeviceControlRequestSchema,
+    IUpdateDeviceRequest,
+    IUpdateDeviceRequestSchema
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
 import { ServiceName as ZWaveServiceName } from '../services/zwave.js';
@@ -129,6 +131,23 @@ const devicesRouterPlugin: FastifyPluginAsync<IDevicesRouterOptions> = async (se
                     serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
 
                     const result = serverRoute.zwaveService.getDevice(request.params.nodeId);
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
+            serverRoute.route<{ Params: IDeviceParams; Body: IUpdateDeviceRequest; Reply: IServiceReply }>({
+                method: 'PUT',
+                url: '/devices/:nodeId',
+                schema: {
+                    params: IDeviceParamsSchema,
+                    body: IUpdateDeviceRequestSchema,
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = serverRoute.zwaveService.setDeviceName(request.params.nodeId, request.body.name);
 
                     return response.status(result.statusCode as 200).send(result);
                 }
