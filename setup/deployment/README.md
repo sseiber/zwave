@@ -219,6 +219,18 @@ The script writes to a `.partial` file and renames only on success, refuses to k
 an archive that doesn't contain `securityKeys.json` (which would mean it grabbed the
 wrong or an empty volume), and prunes old archives beyond `KEEP`.
 
+**Where to run it.** Anywhere — the backup targets the container by name
+(`--volumes-from zwave-service`), so your working directory does *not* affect what
+gets backed up; it only decides where the archive is written. Two practical notes:
+
+- Prefer an **explicit destination** (`~/zwave-backups`) and don't run from inside the
+  repo checkout (`~/zwave`), or the archive lands among your source files.
+- The bare `./zwave-backup.sh` form only works from this `setup/deployment/` directory
+  (that's what `./` means). To run it from elsewhere, use the full path
+  (`~/zwave/setup/deployment/zwave-backup.sh ~/zwave-backups`) or install it to
+  `/usr/local/bin` (see [Schedule it with cron](#schedule-it-with-cron)) and call it by
+  name.
+
 This is safe hot because of how the files are written:
 
 | File | Hot-copy safety |
