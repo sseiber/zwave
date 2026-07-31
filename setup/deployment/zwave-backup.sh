@@ -14,8 +14,10 @@
 #
 set -euo pipefail
 
-# cron runs with a minimal PATH; be explicit so `docker` is found
-PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# cron runs with a minimal PATH; make sure the standard dirs are present, but APPEND
+# rather than replace so a caller's own PATH (e.g. a rootless-docker or /snap/bin
+# location) is never dropped.
+PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 CONTAINER="${CONTAINER:-zwave-service}"
 BACKUP_DIR="${1:-${BACKUP_DIR:-$HOME/zwave-backups}}"
@@ -52,7 +54,13 @@ fi
 
 # Sanity-check the archive before trusting it: securityKeys.json is the file that
 # actually matters, and its absence means we backed up the wrong (or an empty) volume.
-if ! tar tzf "$TMP" | grep -q 'securityKeys.json'; then
+#
+# List into a variable first, then grep a here-string. Piping `tar tzf` straight into
+# `grep -q` lets grep exit on the first match and close the pipe, which hits tar with
+# SIGPIPE (exit 141) — and under `set -o pipefail` that fails this check on a perfectly
+# good archive. Reading the listing fully first avoids the early pipe close.
+archive_listing="$(tar tzf "$TMP")" || { rm -f "$TMP"; die "could not read back the archive"; }
+if ! grep -q 'securityKeys.json' <<<"$archive_listing"; then
     rm -f "$TMP"
     die "archive did not contain securityKeys.json - refusing to keep it"
 fi
