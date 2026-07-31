@@ -140,7 +140,7 @@ function RoomForm({ room, devices, onCancel, onSave }: RoomFormProps) {
                                 checked={deviceIds.includes(device.nodeId)}
                                 onChange={() => toggle(device.nodeId)}
                             />
-                            <span>{device.name || `Node ${device.nodeId}`} <span className="muted">#{device.nodeId} · {device.type}</span></span>
+                            <span>{device.name || `Node ${device.nodeId}`} <span className="muted">{device.name ? `· node ${device.nodeId} ` : ''}· {device.type}</span></span>
                         </label>
                     ))}
             </fieldset>
