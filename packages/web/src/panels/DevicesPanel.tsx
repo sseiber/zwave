@@ -83,7 +83,7 @@ function DeviceCard({ device, onControl, run, refresh }: DeviceCardProps) {
                 <span className={`pill ${device.status}`}>{device.status}</span>
             </div>
             <div className="meta">
-                <span>#{device.nodeId}</span>
+                <span>node {device.nodeId}</span>
                 <span>{device.type}</span>
                 {device.on !== undefined && (
                     <span>{device.on ? 'on' : 'off'}{isDimmer && device.level !== undefined ? ` · ${device.level}%` : ''}</span>

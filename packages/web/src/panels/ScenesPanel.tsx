@@ -270,7 +270,7 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
                             <div key={device.nodeId} className="scene-row">
                                 <label className="check">
                                     <input type="checkbox" checked={Boolean(state)} onChange={() => toggle(device)} />
-                                    <span>{device.name || `Node ${device.nodeId}`} <span className="muted">#{device.nodeId} · {device.type}</span></span>
+                                    <span>{device.name || `Node ${device.nodeId}`} <span className="muted">{device.name ? `· node ${device.nodeId} ` : ''}· {device.type}</span></span>
                                 </label>
 
                                 {state && (
