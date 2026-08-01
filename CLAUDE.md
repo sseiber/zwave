@@ -152,7 +152,10 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
   Read in `zwaveController.describeNode`; the health check calls `node.checkLifelineHealth`.
 - `GET|POST /rooms`, `GET|PUT|DELETE /rooms/:roomId`, `POST /rooms/:roomId/control`
 - `GET|POST /scenes`, `GET|PUT|DELETE /scenes/:sceneId`, `POST /scenes/:sceneId/activate`
-  - Scene shape: `{ id, name, roomId, trigger: manual|scheduled, schedule?, devices: [{ deviceId, action: on|off|dim, level? }] }`
+  - Scene shape: `{ id, name, roomId?, trigger: manual|scheduled, schedule?, devices: [{ deviceId, action: on|off|dim, level? }] }`
+  - A scene's `devices` can span **any** rooms (or none) — the service never scoped
+    scenes to a room. `roomId` is an **optional organizational label** only (a catch-all
+    like `House.Off` has none); the web editor offers every device grouped by room.
   - `trigger: scheduled` requires a valid `schedule`; the route rejects bad ones (400)
     rather than letting them silently never fire.
 - `GET /scenes/status` — runtime `[{ sceneId, nextRun?, lastRun?, lastResult? }]` for

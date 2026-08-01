@@ -39,7 +39,6 @@
       "required": [
         "id",
         "name",
-        "roomId",
         "trigger",
         "devices"
       ],
