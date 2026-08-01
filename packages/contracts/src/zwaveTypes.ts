@@ -243,8 +243,10 @@ export interface ISceneDevice {
 export interface IScene {
     id: string;
     name: string;
-    // The room this scene belongs to
-    roomId: string;
+    // Optional organizational label; does NOT constrain which devices the scene
+    // controls. A scene's devices can span any rooms (or none), so a catch-all like
+    // "House.Off" needs no room.
+    roomId?: string;
     trigger: SceneTrigger;
     // Required when trigger is 'scheduled'; ignored otherwise
     schedule?: ISchedule;
@@ -273,7 +275,8 @@ export interface ISceneStatus {
 
 export interface ICreateSceneRequest {
     name: string;
-    roomId: string;
+    // Optional label (see IScene.roomId); scenes are not scoped to a room
+    roomId?: string;
     trigger: SceneTrigger;
     schedule?: ISchedule;
     devices: ISceneDevice[];

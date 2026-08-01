@@ -139,6 +139,18 @@ label.check { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.
 label.check > span:first-child { display: inline; font-size: inherit; color: inherit; margin: 0; }
 label.check input { width: auto; }
 
+/* Scene editor device groups (by room) */
+.device-group + .device-group { margin-top: 0.6rem; }
+.device-group-head {
+    margin: 0 0 0.2rem;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.2rem;
+}
+
 /* Scene editor rows */
 .scene-row { padding: 0.35rem 0; border-bottom: 1px dashed var(--border); }
 .scene-row:last-child { border-bottom: none; }
