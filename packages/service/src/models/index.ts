@@ -20,7 +20,6 @@ export {
     ICreateRoomRequest,
     IUpdateRoomRequest,
     IRoomControlRequest,
-    SceneTrigger,
     ScheduleKind,
     IntervalUnit,
     TimeOfDayKind,

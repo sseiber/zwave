@@ -253,6 +253,12 @@ button:disabled:hover { border-color: var(--border); }
 
 .meta .sched { color: var(--accent); font-weight: 600; }
 
+/* Multiple schedules editor */
+.schedule-entry { border-top: 1px dashed var(--border); padding-top: 0.5rem; margin-top: 0.5rem; }
+.schedule-entry:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+.schedule-entry-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; color: var(--muted); }
+.schedule-entry .schedule { margin-top: 0.3rem; }
+
 /* Scene next/last run times */
 .run-times {
     display: flex;

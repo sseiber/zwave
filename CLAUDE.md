@@ -51,9 +51,11 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
 
 4. **Scheduler** (`services/scheduler.ts` + `services/schedule.ts`)
    - `scheduler.ts` is a `fastify-plugin` that ticks every 1s, planning/firing scenes
-     whose `trigger` is `scheduled`. It re-reads the in-memory scene list each tick, so
-     create/update/delete need no change hooks; a schedule's JSON is its signature, and
-     an edited schedule is re-planned. Fires via `zwaveService.applyScene`.
+     that have one or more `schedules`. It re-reads the in-memory scene list each tick,
+     so create/update/delete need no change hooks; the JSON of a scene's whole
+     `schedules` array is its signature, and any edit re-plans every entry. Each schedule
+     has its own next-run; when any is due the scene fires once via
+     `zwaveService.applyScene`, and only the due entries are re-planned.
    - `schedule.ts` (named exports only) holds `computeNextRun` / `validateSchedule` /
      `getGeoLocation`. Solar times come from `suncalc`. All math is local-time.
 
@@ -152,16 +154,19 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
   Read in `zwaveController.describeNode`; the health check calls `node.checkLifelineHealth`.
 - `GET|POST /rooms`, `GET|PUT|DELETE /rooms/:roomId`, `POST /rooms/:roomId/control`
 - `GET|POST /scenes`, `GET|PUT|DELETE /scenes/:sceneId`, `POST /scenes/:sceneId/activate`
-  - Scene shape: `{ id, name, roomId?, trigger: manual|scheduled, schedule?, devices: [{ deviceId, action: on|off|dim, level? }] }`
+  - Scene shape: `{ id, name, roomId?, schedules?: ISchedule[], devices: [{ deviceId, action: on|off|dim, level? }] }`
   - A scene's `devices` can span **any** rooms (or none) — the service never scoped
     scenes to a room. `roomId` is an **optional organizational label** only (a catch-all
     like `House.Off` has none); the web editor offers every device grouped by room.
-  - `trigger: scheduled` requires a valid `schedule`; the route rejects bad ones (400)
-    rather than letting them silently never fire.
+  - There is **no manual/scheduled mode**: every scene is always manually activatable.
+    `schedules` is an optional list — each entry independently fires the scene (e.g.
+    90 min before sunset **and** 60 min before sunrise). The route rejects any invalid
+    entry (400, naming its index) rather than letting it silently never fire.
 - `GET /scenes/status` — runtime `[{ sceneId, nextRun?, lastRun?, lastResult? }]` for
-  every scene. `nextRun` (scheduled scenes only) is the scheduler's in-memory plan;
-  `lastRun`/`lastResult` come from the persisted run record (both manual and scheduled
-  activations record one). Static route, matched ahead of `/scenes/:sceneId`.
+  every scene. `nextRun` is the **soonest** upcoming run across the scene's schedules
+  (scheduler's in-memory plan); `lastRun`/`lastResult` come from the persisted run
+  record (both manual and scheduled activations record one). Static route, matched
+  ahead of `/scenes/:sceneId`.
   - Run records persist to `sceneRuns.json` in the storage volume, kept off `IScene`
     so the stored scene stays a pure user shape. Writes are throttled (≤ once/30s per
     store) and flushed on shutdown; the in-memory value is authoritative.

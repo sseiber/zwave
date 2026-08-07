@@ -14,8 +14,7 @@ import {
     ICreateSceneRequestSchema,
     IUpdateSceneRequest,
     IUpdateSceneRequestSchema,
-    ISchedule,
-    SceneTrigger
+    ISchedule
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
 import { getGeoLocation, validateSchedule } from '../services/schedule.js';
@@ -31,14 +30,25 @@ const responseSchema = {
     '5xx': IServiceErrorMessageSchema
 };
 
-// A scheduled scene needs a schedule the scheduler can actually plan, so reject a
-// bad one at the API rather than silently never firing. Returns an error message.
-function scheduleError(trigger: SceneTrigger | undefined, schedule: ISchedule | undefined): string | undefined {
-    if (trigger !== SceneTrigger.Scheduled) {
+// Every schedule on a scene must be one the scheduler can actually plan, so reject a
+// bad one at the API rather than letting it silently never fire. An absent/empty list
+// is valid (manual-only). Returns an error message (naming the offending entry) or
+// undefined.
+function schedulesError(schedules: ISchedule[] | undefined): string | undefined {
+    if (!schedules?.length) {
         return undefined;
     }
 
-    return validateSchedule(schedule, getGeoLocation());
+    const geo = getGeoLocation();
+
+    for (let i = 0; i < schedules.length; i++) {
+        const invalid = validateSchedule(schedules[i], geo);
+        if (invalid) {
+            return `Schedule ${i + 1}: ${invalid}`;
+        }
+    }
+
+    return undefined;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -105,7 +115,7 @@ const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (serv
                 handler: async (request, response) => {
                     serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
 
-                    const invalid = scheduleError(request.body.trigger, request.body.schedule);
+                    const invalid = schedulesError(request.body.schedules);
                     if (invalid) {
                         throw serverRoute.httpErrors.badRequest(invalid);
                     }
@@ -166,10 +176,7 @@ const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (serv
                     }
 
                     // Validate against the scene as it will be once the patch is applied
-                    const invalid = scheduleError(
-                        request.body.trigger ?? existing.trigger,
-                        request.body.schedule ?? existing.schedule
-                    );
+                    const invalid = schedulesError(request.body.schedules ?? existing.schedules);
                     if (invalid) {
                         throw serverRoute.httpErrors.badRequest(invalid);
                     }
