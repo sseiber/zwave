@@ -99,11 +99,11 @@
         "roomId": {
           "type": "string"
         },
-        "schedule": {
-          "$ref": "#/definitions/ISchedule"
-        },
-        "trigger": {
-          "$ref": "#/definitions/SceneTrigger"
+        "schedules": {
+          "items": {
+            "$ref": "#/definitions/ISchedule"
+          },
+          "type": "array"
         }
       },
       "type": "object"
@@ -114,13 +114,6 @@
         "minutes",
         "hours",
         "days"
-      ],
-      "type": "string"
-    },
-    "SceneTrigger": {
-      "enum": [
-        "manual",
-        "scheduled"
       ],
       "type": "string"
     },

@@ -179,8 +179,7 @@ class RoomSceneStore {
             id: uuidv4(),
             name: request.name,
             roomId: request.roomId,
-            trigger: request.trigger,
-            schedule: request.schedule,
+            schedules: request.schedules,
             devices: request.devices ?? []
         };
 
@@ -205,12 +204,8 @@ class RoomSceneStore {
             scene.roomId = request.roomId;
         }
 
-        if (request.trigger !== undefined) {
-            scene.trigger = request.trigger;
-        }
-
-        if (request.schedule !== undefined) {
-            scene.schedule = request.schedule;
+        if (request.schedules !== undefined) {
+            scene.schedules = request.schedules;
         }
 
         if (request.devices !== undefined) {

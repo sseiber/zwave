@@ -165,14 +165,13 @@ export interface IRoomControlRequest {
 }
 
 //
-// Scenes (a named set of devices, each with an action, belonging to a room)
+// Scenes (a named set of devices, each with an action)
 //
-export enum SceneTrigger {
-    // Activated on demand, via the API or the web UI
-    Manual = 'manual',
-    // Activated automatically by the scheduler, per the scene's `schedule`
-    Scheduled = 'scheduled'
-}
+// Every scene is always manually activatable (API / web UI). A scene may ALSO carry
+// zero or more `schedules`; each one independently fires the scene. There is no
+// manual-vs-scheduled mode — an outdoor scene can run 90 min before sunset AND 60 min
+// before sunrise while still being activatable on demand.
+//
 
 //
 // Scheduling
@@ -247,9 +246,9 @@ export interface IScene {
     // controls. A scene's devices can span any rooms (or none), so a catch-all like
     // "House.Off" needs no room.
     roomId?: string;
-    trigger: SceneTrigger;
-    // Required when trigger is 'scheduled'; ignored otherwise
-    schedule?: ISchedule;
+    // Zero or more automatic triggers; each independently fires the scene. Absent or
+    // empty = manual-only. The scene is always manually activatable regardless.
+    schedules?: ISchedule[];
     devices: ISceneDevice[];
 }
 
@@ -268,7 +267,9 @@ export interface ISceneRunResult {
 // `lastRun`/`lastResult` from the persisted run record (manual or scheduled).
 export interface ISceneStatus {
     sceneId: string;
-    nextRun?: string;    // ISO date-time; only for scheduled scenes with a future run
+    // ISO date-time of the soonest upcoming run across all of the scene's schedules
+    // (absent if the scene has no schedules or none has a future run)
+    nextRun?: string;
     lastRun?: string;    // ISO date-time of the most recent activation
     lastResult?: ISceneRunResult;
 }
@@ -277,15 +278,13 @@ export interface ICreateSceneRequest {
     name: string;
     // Optional label (see IScene.roomId); scenes are not scoped to a room
     roomId?: string;
-    trigger: SceneTrigger;
-    schedule?: ISchedule;
+    schedules?: ISchedule[];
     devices: ISceneDevice[];
 }
 
 export interface IUpdateSceneRequest {
     name?: string;
     roomId?: string;
-    trigger?: SceneTrigger;
-    schedule?: ISchedule;
+    schedules?: ISchedule[];
     devices?: ISceneDevice[];
 }

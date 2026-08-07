@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { IDeviceInfo, IRoom, IScene, ISceneDevice, ISceneStatus, ISchedule } from '@zwave-service/contracts';
-import { DeviceAction, DeviceType, SceneTrigger, ScheduleKind } from '@zwave-service/contracts';
+import { DeviceAction, DeviceType, ScheduleKind } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 import { defaultSchedule, describeSchedule } from '../schedule.ts';
@@ -39,10 +39,10 @@ export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, re
         }
     };
 
-    const save = async (name: string, roomId: string | undefined, trigger: SceneTrigger, schedule: ISchedule | undefined, sceneDevices: ISceneDevice[]): Promise<void> => {
+    const save = async (name: string, roomId: string | undefined, schedules: ISchedule[] | undefined, sceneDevices: ISceneDevice[]): Promise<void> => {
         const ok = editing === 'new'
-            ? await run(() => api.createScene({ name, roomId, trigger, schedule, devices: sceneDevices }), `Scene “${name}” created`)
-            : await run(() => api.updateScene((editing as IScene).id, { name, roomId, trigger, schedule, devices: sceneDevices }), `Scene “${name}” updated`);
+            ? await run(() => api.createScene({ name, roomId, schedules, devices: sceneDevices }), `Scene “${name}” created`)
+            : await run(() => api.updateScene((editing as IScene).id, { name, roomId, schedules, devices: sceneDevices }), `Scene “${name}” updated`);
 
         if (ok) {
             setEditing(null);
@@ -85,14 +85,16 @@ export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, re
                             <li key={scene.id} className="card">
                                 <div className="card-head">
                                     <span className="name">{scene.name}</span>
-                                    <span className={`pill ${scene.trigger}`}>{scene.trigger}</span>
+                                    {scene.schedules?.length
+                                        ? <span className="pill scheduled">{scene.schedules.length} schedule{scene.schedules.length === 1 ? '' : 's'}</span>
+                                        : <span className="pill manual">manual</span>}
                                 </div>
                                 <div className="meta">
                                     {scene.roomId && <span>{roomName(rooms, scene.roomId)}</span>}
                                     <span>{scene.devices.length} device{scene.devices.length === 1 ? '' : 's'}</span>
-                                    {scene.trigger === SceneTrigger.Scheduled && (
-                                        <span className="sched">{describeSchedule(scene.schedule)}</span>
-                                    )}
+                                    {scene.schedules?.map((s, i) => (
+                                        <span key={i} className="sched">{describeSchedule(s)}</span>
+                                    ))}
                                 </div>
                                 <SceneRunTimes scene={scene} status={statusById.get(scene.id)} />
                                 <ul className="scene-actions">
@@ -117,11 +119,11 @@ export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, re
 }
 
 function SceneRunTimes({ scene, status }: { scene: IScene; status: ISceneStatus | undefined }) {
-    const showNext = scene.trigger === SceneTrigger.Scheduled;
+    const showNext = (scene.schedules?.length ?? 0) > 0;
     const hasLast = Boolean(status?.lastRun);
 
-    // Scheduled scenes always show a "Next" (even if unplanned); manual scenes only
-    // appear here once they've been run at least once.
+    // Scheduled scenes always show a "Next" (even if unplanned); scenes without
+    // schedules only appear here once they've been activated at least once.
     if (!showNext && !hasLast) {
         return null;
     }
@@ -163,7 +165,7 @@ interface SceneFormProps {
     rooms: IRoom[];
     devices: IDeviceInfo[];
     onCancel: () => void;
-    onSave: (name: string, roomId: string | undefined, trigger: SceneTrigger, schedule: ISchedule | undefined, devices: ISceneDevice[]) => Promise<void>;
+    onSave: (name: string, roomId: string | undefined, schedules: ISchedule[] | undefined, devices: ISceneDevice[]) => Promise<void>;
 }
 
 interface DeviceGroup {
@@ -206,8 +208,7 @@ interface SelectedState {
 function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) {
     const [name, setName] = useState(scene?.name ?? '');
     const [roomId, setRoomId] = useState(scene?.roomId ?? '');
-    const [trigger, setTrigger] = useState<SceneTrigger>(scene?.trigger ?? SceneTrigger.Manual);
-    const [schedule, setSchedule] = useState<ISchedule>(scene?.schedule ?? defaultSchedule(ScheduleKind.Daily));
+    const [schedules, setSchedules] = useState<ISchedule[]>(scene?.schedules ?? []);
     const [selected, setSelected] = useState<Record<number, SelectedState>>(() => {
         const initial: Record<number, SelectedState> = {};
         scene?.devices.forEach(d => {
@@ -234,6 +235,11 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
         setSelected(current => ({ ...current, [nodeId]: { ...current[nodeId], ...patch } }));
     };
 
+    const addSchedule = (): void => setSchedules(current => [...current, defaultSchedule(ScheduleKind.Daily)]);
+    const removeSchedule = (index: number): void => setSchedules(current => current.filter((_, i) => i !== index));
+    const updateSchedule = (index: number, next: ISchedule): void =>
+        setSchedules(current => current.map((s, i) => (i === index ? next : s)));
+
     const canSave = name.trim().length > 0 && Object.keys(selected).length > 0;
 
     const submit = (): void => {
@@ -243,7 +249,7 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
             ...(state.action === DeviceAction.Dim ? { level: state.level } : {})
         }));
 
-        void onSave(name.trim(), roomId || undefined, trigger, trigger === SceneTrigger.Scheduled ? schedule : undefined, sceneDevices);
+        void onSave(name.trim(), roomId || undefined, schedules.length ? schedules : undefined, sceneDevices);
     };
 
     return (
@@ -271,17 +277,21 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
                 </select>
             </label>
 
-            <label>
-                <span>Trigger</span>
-                <select value={trigger} onChange={e => setTrigger(e.target.value as SceneTrigger)}>
-                    <option value={SceneTrigger.Manual}>Manual — activate on demand</option>
-                    <option value={SceneTrigger.Scheduled}>Scheduled — run automatically</option>
-                </select>
-            </label>
-
-            {trigger === SceneTrigger.Scheduled && (
-                <SchedulePicker schedule={schedule} onChange={setSchedule} />
-            )}
+            <fieldset className="schedules">
+                <legend>Schedules <span className="muted">(optional — the scene is always activatable by hand)</span></legend>
+                {schedules.length === 0
+                    ? <p className="muted hint">No schedules — this scene runs only when you activate it.</p>
+                    : schedules.map((s, index) => (
+                        <div key={index} className="schedule-entry">
+                            <div className="schedule-entry-head">
+                                <span>Schedule {index + 1}</span>
+                                <button type="button" className="danger link-btn" onClick={() => removeSchedule(index)}>Remove</button>
+                            </div>
+                            <SchedulePicker schedule={s} onChange={next => updateSchedule(index, next)} />
+                        </div>
+                    ))}
+                <button type="button" onClick={addSchedule}>+ Add schedule</button>
+            </fieldset>
 
             <fieldset>
                 <legend>Devices and what they do</legend>
