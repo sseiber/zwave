@@ -148,6 +148,13 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
   zwave-js network cache (not on the device), so it survives restarts with the storage
   volume. Empty string clears it (UI falls back to `Node <id>`).
 - `POST /devices/:nodeId/control` `{ action: on|off|dim, level? }`
+- `GET /devices/:nodeId/config` — Configuration CC parameters as `IDeviceConfigParam[]`
+  (parameter/bitmask, label, description, current value, min/max/default, unit,
+  options, allowManualEntry, readOnly, advanced). Names/ranges/options come from the
+  zwave-js device database, so they are device-specific (e.g. Jasco dimmer ramp rate).
+  Values are read from the network cache; `[]` if the device has no Configuration CC.
+- `PUT /devices/:nodeId/config` `{ parameter, bitmask?, value }` — set one parameter via
+  `node.setValue`; returns the re-read `IDeviceConfigParam`. Read-only params are rejected.
 - `POST /devices/:nodeId/health-check` — active lifeline health check (rating 0-10 + latency/rssi)
 - `GET /devices` items are capability-gated rich state: on/level/targetLevel, firmwareVersion,
   securityClass, `power` (Meter CC), `link` (passive mesh stats: rssi/hops/rtt/lastSeen), `battery`.

@@ -14,7 +14,9 @@ import {
     IDeviceControlRequest,
     IDeviceControlRequestSchema,
     IUpdateDeviceRequest,
-    IUpdateDeviceRequestSchema
+    IUpdateDeviceRequestSchema,
+    ISetConfigParamRequest,
+    ISetConfigParamRequestSchema
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
 import { ServiceName as ZWaveServiceName } from '../services/zwave.js';
@@ -165,6 +167,42 @@ const devicesRouterPlugin: FastifyPluginAsync<IDevicesRouterOptions> = async (se
                     serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
 
                     const result = await serverRoute.zwaveService.controlDevice(request.params.nodeId, request.body.action, request.body.level);
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
+            //
+            // Configuration parameters (Configuration CC)
+            //
+            serverRoute.route<{ Params: IDeviceParams; Reply: IServiceReply }>({
+                method: 'GET',
+                url: '/devices/:nodeId/config',
+                schema: {
+                    params: IDeviceParamsSchema,
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = serverRoute.zwaveService.getDeviceConfig(request.params.nodeId);
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
+            serverRoute.route<{ Params: IDeviceParams; Body: ISetConfigParamRequest; Reply: IServiceReply }>({
+                method: 'PUT',
+                url: '/devices/:nodeId/config',
+                schema: {
+                    params: IDeviceParamsSchema,
+                    body: ISetConfigParamRequestSchema,
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = await serverRoute.zwaveService.setDeviceConfig(request.params.nodeId, request.body);
 
                     return response.status(result.statusCode as 200).send(result);
                 }

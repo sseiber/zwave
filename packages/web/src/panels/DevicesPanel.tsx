@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { IDeviceInfo, IHealthCheckResult } from '@zwave-service/contracts';
+import type { IDeviceInfo, IHealthCheckResult, IDeviceConfigParam } from '@zwave-service/contracts';
 import { DeviceAction, DeviceType } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
@@ -245,6 +245,135 @@ function DeviceDetail({ device, run, refresh }: DeviceDetailProps) {
                     )}
                 </div>
                 <p className="muted hint">Signal updates passively as the device is used. “Test link” actively pings it for a fresh reading.</p>
+            </div>
+
+            <ConfigSection nodeId={device.nodeId} run={run} />
+        </div>
+    );
+}
+
+// Device configuration parameters (Configuration CC). Lazy-loaded on demand — some
+// devices expose many parameters, and reading them isn't worth doing for every card.
+function ConfigSection({ nodeId, run }: { nodeId: number; run: RunFn }) {
+    const [params, setParams] = useState<IDeviceConfigParam[] | null>(null);
+    const [loading, setLoading] = useState(false);
+    const [showAdvanced, setShowAdvanced] = useState(false);
+
+    const load = async (): Promise<void> => {
+        setLoading(true);
+        try {
+            setParams(await api.getDeviceConfig(nodeId));
+        }
+        catch {
+            setParams([]);
+        }
+        finally {
+            setLoading(false);
+        }
+    };
+
+    const onUpdated = (updated: IDeviceConfigParam): void => {
+        setParams(current => (current ?? []).map(p =>
+            (p.parameter === updated.parameter && p.bitmask === updated.bitmask) ? updated : p));
+    };
+
+    return (
+        <div className="detail-group">
+            <h4>Configuration</h4>
+
+            {params === null
+                ? (
+                    <div className="controls">
+                        <button onClick={() => void load()} disabled={loading}>
+                            {loading ? 'Loading…' : 'Load configuration'}
+                        </button>
+                        <span className="muted hint">Device-specific settings (e.g. dimmer ramp rate) stored on the device.</span>
+                    </div>
+                )
+                : params.length === 0
+                    ? <p className="muted">No configurable parameters for this device.</p>
+                    : (
+                        <>
+                            {params.filter(p => showAdvanced || !p.advanced).map(p => (
+                                <ConfigRow key={`${p.parameter}:${p.bitmask ?? 0}`} nodeId={nodeId} param={p} run={run} onUpdated={onUpdated} />
+                            ))}
+                            {params.some(p => p.advanced) && (
+                                <button className="link-btn" onClick={() => setShowAdvanced(v => !v)}>
+                                    {showAdvanced ? 'Hide advanced' : 'Show advanced'}
+                                </button>
+                            )}
+                        </>
+                    )}
+        </div>
+    );
+}
+
+interface ConfigRowProps {
+    nodeId: number;
+    param: IDeviceConfigParam;
+    run: RunFn;
+    onUpdated: (param: IDeviceConfigParam) => void;
+}
+
+export function ConfigRow({ nodeId, param, run, onUpdated }: ConfigRowProps) {
+    const initial = param.value ?? param.default ?? param.min ?? 0;
+    const [draft, setDraft] = useState<number>(initial);
+    const [saving, setSaving] = useState(false);
+
+    // Re-sync when a fresh value arrives (e.g. after a successful set)
+    useEffect(() => {
+        setDraft(param.value ?? param.default ?? param.min ?? 0);
+    }, [param.value, param.default, param.min]);
+
+    const dirty = draft !== param.value;
+
+    const save = async (): Promise<void> => {
+        if (param.readOnly || saving) {
+            return;
+        }
+        setSaving(true);
+        try {
+            let updated: IDeviceConfigParam | null = null;
+            await run(async () => {
+                updated = await api.setDeviceConfigParam(nodeId, { parameter: param.parameter, bitmask: param.bitmask, value: draft });
+                return { message: `${param.label} set to ${draft}` };
+            });
+            if (updated) {
+                onUpdated(updated);
+            }
+        }
+        finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <div className="config-row">
+            <div className="config-label">
+                <span>{param.label} <span className="muted">#{param.parameter}{param.bitmask ? `/0x${param.bitmask.toString(16)}` : ''}</span></span>
+                {param.description && <span className="muted hint">{param.description}</span>}
+            </div>
+            <div className="config-edit">
+                {param.options && !param.allowManualEntry
+                    ? (
+                        <select value={draft} disabled={param.readOnly} onChange={e => setDraft(Number(e.target.value))}>
+                            {param.options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                    )
+                    : (
+                        <input
+                            type="number"
+                            value={draft}
+                            min={param.min}
+                            max={param.max}
+                            disabled={param.readOnly}
+                            onChange={e => setDraft(Number(e.target.value))}
+                        />
+                    )}
+                {param.unit && <span className="muted">{param.unit}</span>}
+                {param.readOnly
+                    ? <span className="muted">read-only</span>
+                    : <button onClick={() => void save()} disabled={!dirty || saving}>{saving ? '…' : 'Set'}</button>}
             </div>
         </div>
     );

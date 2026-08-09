@@ -1,0 +1,26 @@
+{
+  "$id": "ISetConfigParamRequest",
+  "$ref": "#/definitions/ISetConfigParamRequest",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "ISetConfigParamRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "bitmask": {
+          "type": "number"
+        },
+        "parameter": {
+          "type": "number"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "parameter",
+        "value"
+      ],
+      "type": "object"
+    }
+  }
+}

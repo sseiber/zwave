@@ -2,6 +2,8 @@ import type {
     IServiceResponse,
     IDeviceInfo,
     IDeviceControlRequest,
+    IDeviceConfigParam,
+    ISetConfigParamRequest,
     IHealthCheckResult,
     IInclusionRequest,
     IRoom,
@@ -67,6 +69,16 @@ export const api = {
     async checkDeviceHealth(nodeId: number): Promise<IHealthCheckResult> {
         const res = await request<IHealthCheckResult>(`/devices/${nodeId}/health-check`, { method: 'POST' });
         return res.data as IHealthCheckResult;
+    },
+
+    async getDeviceConfig(nodeId: number): Promise<IDeviceConfigParam[]> {
+        const res = await request<IDeviceConfigParam[]>(`/devices/${nodeId}/config`);
+        return res.data ?? [];
+    },
+
+    async setDeviceConfigParam(nodeId: number, body: ISetConfigParamRequest): Promise<IDeviceConfigParam> {
+        const res = await request<IDeviceConfigParam>(`/devices/${nodeId}/config`, { method: 'PUT', body: JSON.stringify(body) });
+        return res.data as IDeviceConfigParam;
     },
 
     //

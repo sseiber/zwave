@@ -1,0 +1,77 @@
+{
+  "$id": "IDeviceConfigParam",
+  "$ref": "#/definitions/IDeviceConfigParam",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IConfigParamOption": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "value",
+        "label"
+      ],
+      "type": "object"
+    },
+    "IDeviceConfigParam": {
+      "additionalProperties": false,
+      "properties": {
+        "advanced": {
+          "type": "boolean"
+        },
+        "allowManualEntry": {
+          "type": "boolean"
+        },
+        "bitmask": {
+          "type": "number"
+        },
+        "default": {
+          "type": "number"
+        },
+        "description": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "max": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/definitions/IConfigParamOption"
+          },
+          "type": "array"
+        },
+        "parameter": {
+          "type": "number"
+        },
+        "readOnly": {
+          "type": "boolean"
+        },
+        "unit": {
+          "type": "string"
+        },
+        "value": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "parameter",
+        "label",
+        "allowManualEntry",
+        "readOnly"
+      ],
+      "type": "object"
+    }
+  }
+}
