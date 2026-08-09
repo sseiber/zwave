@@ -13,6 +13,9 @@ export {
     IDeviceParams,
     IDeviceControlRequest,
     IUpdateDeviceRequest,
+    IConfigParamOption,
+    IDeviceConfigParam,
+    ISetConfigParamRequest,
     InclusionStrategyOption,
     IInclusionRequest,
     IRoom,
@@ -38,6 +41,7 @@ import IServiceResponseSchemaRaw from './schemas/IServiceResponseSchema.json' wi
 import IServiceErrorMessageSchemaRaw from './schemas/IServiceErrorMessageSchema.json' with { type: 'json' };
 import IDeviceControlRequestSchemaRaw from './schemas/IDeviceControlRequestSchema.json' with { type: 'json' };
 import IUpdateDeviceRequestSchemaRaw from './schemas/IUpdateDeviceRequestSchema.json' with { type: 'json' };
+import ISetConfigParamRequestSchemaRaw from './schemas/ISetConfigParamRequestSchema.json' with { type: 'json' };
 import IDeviceParamsSchemaRaw from './schemas/IDeviceParamsSchema.json' with { type: 'json' };
 import IInclusionRequestSchemaRaw from './schemas/IInclusionRequestSchema.json' with { type: 'json' };
 import ICreateRoomRequestSchemaRaw from './schemas/ICreateRoomRequestSchema.json' with { type: 'json' };
@@ -63,6 +67,7 @@ const IServiceResponseSchema = stripSchemaId(IServiceResponseSchemaRaw);
 const IServiceErrorMessageSchema = stripSchemaId(IServiceErrorMessageSchemaRaw);
 const IDeviceControlRequestSchema = stripSchemaId(IDeviceControlRequestSchemaRaw);
 const IUpdateDeviceRequestSchema = stripSchemaId(IUpdateDeviceRequestSchemaRaw);
+const ISetConfigParamRequestSchema = stripSchemaId(ISetConfigParamRequestSchemaRaw);
 const IDeviceParamsSchema = stripSchemaId(IDeviceParamsSchemaRaw);
 const IInclusionRequestSchema = stripSchemaId(IInclusionRequestSchemaRaw);
 const ICreateRoomRequestSchema = stripSchemaId(ICreateRoomRequestSchemaRaw);
@@ -78,6 +83,7 @@ export {
     IServiceErrorMessageSchema,
     IDeviceControlRequestSchema,
     IUpdateDeviceRequestSchema,
+    ISetConfigParamRequestSchema,
     IDeviceParamsSchema,
     IInclusionRequestSchema,
     ICreateRoomRequestSchema,

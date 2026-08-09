@@ -107,6 +107,41 @@ export interface IDeviceControlRequest {
     level?: number;
 }
 
+//
+// Device configuration parameters (Z-Wave Configuration CC). Names/ranges/options
+// come from the zwave-js device database, so they are device-specific — e.g. a Jasco
+// dimmer's ramp-rate settings, which cannot be changed at the wall.
+//
+export interface IConfigParamOption {
+    value: number;
+    label: string;
+}
+
+export interface IDeviceConfigParam {
+    parameter: number;        // Configuration CC parameter number
+    bitmask?: number;         // set for a partial (bitmasked) parameter
+    label: string;            // human-readable name (falls back to 'Parameter <n>')
+    description?: string;
+    value?: number;           // current cached value (absent if never read from the device)
+    min?: number;
+    max?: number;
+    default?: number;
+    unit?: string;
+    // Present when the parameter is an enumerated choice (e.g. Off/Low/High)
+    options?: IConfigParamOption[];
+    // Whether any value in min..max may be entered, vs only the listed options
+    allowManualEntry: boolean;
+    readOnly: boolean;
+    advanced?: boolean;
+}
+
+// Set one configuration parameter (PUT /devices/:nodeId/config)
+export interface ISetConfigParamRequest {
+    parameter: number;
+    bitmask?: number;
+    value: number;
+}
+
 // Rename a device. The name is stored in the zwave-js network cache (not on the
 // device), so it persists across restarts as long as the storage volume survives.
 // An empty string clears the name, and the UI falls back to "Node <id>".

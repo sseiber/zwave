@@ -5,6 +5,7 @@ import fse from 'fs-extra';
 import {
     Driver,
     InclusionStrategy,
+    SetValueStatus,
     ZWaveNode
 } from 'zwave-js';
 import { CommandClasses, NodeStatus, SecurityClass } from '@zwave-js/core';
@@ -16,6 +17,8 @@ import {
     IDeviceLink,
     IDeviceBattery,
     IHealthCheckResult,
+    IDeviceConfigParam,
+    ISetConfigParamRequest,
     InclusionStrategyOption
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
@@ -27,6 +30,53 @@ const CacheDirName = 'cache';
 
 // Z-Wave Multilevel Switch values are 0-99 (0 = off, 99 = full brightness)
 const ZWaveMaxLevel = 99;
+
+// The subset of a zwave-js Configuration value ID + ConfigurationMetadata we read.
+// Kept structural so the mapping helper is testable without a live driver.
+interface IConfigValueId {
+    property: number;
+    propertyKey?: number | string;
+}
+interface IConfigMetadata {
+    label?: string;
+    description?: string;
+    min?: number;
+    max?: number;
+    default?: number;
+    unit?: string;
+    states?: Record<number, string>;
+    allowManualEntry?: boolean;
+    writeable?: boolean;
+    isAdvanced?: boolean;
+}
+
+// Map a Configuration value's ID + metadata + current value to the API shape. Pure so
+// it can be unit-tested against sample metadata (no hardware). Per zwave-js: when
+// `states` are defined, `allowManualEntry` defaults to false (choose from options).
+export function describeConfigParam(valueId: IConfigValueId, metadata: IConfigMetadata | undefined, value: unknown): IDeviceConfigParam {
+    const parameter = valueId.property;
+    const bitmask = typeof valueId.propertyKey === 'number' ? valueId.propertyKey : undefined;
+    const states = metadata?.states;
+    const options = states
+        ? Object.entries(states).map(([v, label]) => ({ value: Number(v), label }))
+        : undefined;
+
+    return {
+        parameter,
+        ...(bitmask !== undefined ? { bitmask } : {}),
+        label: metadata?.label ?? `Parameter ${parameter}`,
+        ...(metadata?.description ? { description: metadata.description } : {}),
+        ...(typeof value === 'number' ? { value } : {}),
+        ...(typeof metadata?.min === 'number' ? { min: metadata.min } : {}),
+        ...(typeof metadata?.max === 'number' ? { max: metadata.max } : {}),
+        ...(typeof metadata?.default === 'number' ? { default: metadata.default } : {}),
+        ...(metadata?.unit ? { unit: metadata.unit } : {}),
+        ...(options ? { options } : {}),
+        allowManualEntry: metadata?.allowManualEntry ?? !states,
+        readOnly: metadata?.writeable === false,
+        ...(metadata?.isAdvanced ? { advanced: true } : {})
+    };
+}
 
 interface ISecurityKeys {
     S0_Legacy: string;
@@ -344,6 +394,69 @@ export class ZWaveController {
         }
 
         return 'Very poor — the device is barely reachable';
+    }
+
+    //
+    // Configuration parameters (Configuration CC)
+    //
+    public listConfigParams(nodeId: number): IDeviceConfigParam[] {
+        this.assertReady();
+
+        const node = this.getNode(nodeId);
+        if (!node.supportsCC(CommandClasses.Configuration)) {
+            return [];
+        }
+
+        const params: IDeviceConfigParam[] = [];
+
+        for (const valueId of node.getDefinedValueIDs()) {
+            if (valueId.commandClass !== CommandClasses.Configuration || typeof valueId.property !== 'number') {
+                continue;
+            }
+
+            const metadata = node.getValueMetadata(valueId) as IConfigMetadata | undefined;
+            params.push(describeConfigParam(valueId as IConfigValueId, metadata, node.getValue(valueId)));
+        }
+
+        params.sort((a, b) => a.parameter - b.parameter || (a.bitmask ?? 0) - (b.bitmask ?? 0));
+
+        return params;
+    }
+
+    public async setConfigParam(nodeId: number, request: ISetConfigParamRequest): Promise<IDeviceConfigParam> {
+        this.assertReady();
+
+        const node = this.getNode(nodeId);
+        if (!node.supportsCC(CommandClasses.Configuration)) {
+            throw new Error(`Device ${nodeId} does not support configuration parameters`);
+        }
+
+        const valueId = {
+            commandClass: CommandClasses.Configuration,
+            property: request.parameter,
+            ...(request.bitmask !== undefined ? { propertyKey: request.bitmask } : {})
+        };
+
+        const metadata = node.getValueMetadata(valueId) as IConfigMetadata | undefined;
+        if (!metadata) {
+            throw new Error(`Parameter ${request.parameter} is not a known configuration parameter for device ${nodeId}`);
+        }
+        if (metadata.writeable === false) {
+            throw new Error(`Parameter ${request.parameter} is read-only`);
+        }
+
+        const result = await node.setValue(valueId, request.value);
+
+        // Working / Success / SuccessUnsupervised all mean the device accepted it; any
+        // other status is a failure (and carries a human-readable message).
+        const accepted = result.status === SetValueStatus.Success
+            || result.status === SetValueStatus.SuccessUnsupervised
+            || result.status === SetValueStatus.Working;
+        if (!accepted) {
+            throw new Error(`Device ${nodeId} did not accept parameter ${request.parameter}: ${result.message ?? SetValueStatus[result.status]}`);
+        }
+
+        return describeConfigParam(valueId, node.getValueMetadata(valueId) as IConfigMetadata | undefined, node.getValue(valueId));
     }
 
     //

@@ -7,7 +7,8 @@ import {
     DeviceAction,
     IInclusionRequest,
     IServiceResponse,
-    ISceneDevice
+    ISceneDevice,
+    ISetConfigParamRequest
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
 import { ZWaveController } from './zwaveController.js';
@@ -152,6 +153,38 @@ class ZWaveService {
 
             return `Device ${nodeId} processed action '${action}'`;
         });
+    }
+
+    public getDeviceConfig(nodeId: number): IServiceResponse {
+        try {
+            const params = this.controller.listConfigParams(nodeId);
+
+            return {
+                succeeded: true,
+                statusCode: 200,
+                message: `Found ${params.length} configuration parameter(s) for device ${nodeId}`,
+                data: params
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`read configuration for device ${nodeId}`, ex);
+        }
+    }
+
+    public async setDeviceConfig(nodeId: number, request: ISetConfigParamRequest): Promise<IServiceResponse> {
+        try {
+            const param = await this.controller.setConfigParam(nodeId, request);
+
+            return {
+                succeeded: true,
+                statusCode: 200,
+                message: `Device ${nodeId} parameter ${request.parameter} set to ${request.value}`,
+                data: param
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`set parameter ${request.parameter} on device ${nodeId}`, ex);
+        }
     }
 
     public async checkDeviceHealth(nodeId: number): Promise<IServiceResponse> {
