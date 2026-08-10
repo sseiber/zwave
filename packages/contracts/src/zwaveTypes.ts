@@ -91,6 +91,17 @@ export interface IDeviceParams {
     nodeId: number;
 }
 
+// Progress of a network-wide route rebuild (GET /rebuild-routes). `active` is true
+// while the controller is rebuilding; the counts summarize per-node status.
+export interface IRebuildRoutesStatus {
+    active: boolean;
+    total: number;
+    done: number;
+    failed: number;
+    skipped: number;
+    pending: number;
+}
+
 // Result of an on-demand lifeline health check (POST /devices/:nodeId/health-check).
 export interface IHealthCheckResult {
     rating: number;       // 0 (worst) - 10 (best)

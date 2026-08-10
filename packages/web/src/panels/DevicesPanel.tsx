@@ -247,7 +247,51 @@ function DeviceDetail({ device, run, refresh }: DeviceDetailProps) {
                 <p className="muted hint">Signal updates passively as the device is used. “Test link” actively pings it for a fresh reading.</p>
             </div>
 
+            <MaintenanceRow nodeId={device.nodeId} run={run} refresh={refresh} />
+
             <ConfigSection nodeId={device.nodeId} run={run} />
+        </div>
+    );
+}
+
+// Per-device mesh maintenance: re-interview (fixes "unknown" devices + unlocks config)
+// and single-node route rebuild (useful after the controller moves).
+export function MaintenanceRow({ nodeId, run, refresh }: { nodeId: number; run: RunFn; refresh: () => Promise<void> }) {
+    const [busy, setBusy] = useState<'refresh' | 'routes' | null>(null);
+
+    const reinterview = async (): Promise<void> => {
+        setBusy('refresh');
+        try {
+            await run(() => api.refreshDevice(nodeId));
+            await refresh();
+        }
+        finally {
+            setBusy(null);
+        }
+    };
+
+    const rebuild = async (): Promise<void> => {
+        setBusy('routes');
+        try {
+            await run(() => api.rebuildDeviceRoutes(nodeId));
+        }
+        finally {
+            setBusy(null);
+        }
+    };
+
+    return (
+        <div className="detail-group">
+            <h4>Maintenance</h4>
+            <div className="controls">
+                <button onClick={() => void reinterview()} disabled={busy !== null}>
+                    {busy === 'refresh' ? 'Re-interviewing…' : 'Re-interview'}
+                </button>
+                <button onClick={() => void rebuild()} disabled={busy !== null}>
+                    {busy === 'routes' ? 'Rebuilding…' : 'Rebuild routes'}
+                </button>
+            </div>
+            <p className="muted hint">Re-interview re-reads the device (fixes an “unknown” device and its configuration). Rebuild routes recomputes how the controller reaches it — useful after moving the controller.</p>
         </div>
     );
 }

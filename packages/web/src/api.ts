@@ -5,6 +5,7 @@ import type {
     IDeviceConfigParam,
     ISetConfigParamRequest,
     IHealthCheckResult,
+    IRebuildRoutesStatus,
     IInclusionRequest,
     IRoom,
     ICreateRoomRequest,
@@ -79,6 +80,26 @@ export const api = {
     async setDeviceConfigParam(nodeId: number, body: ISetConfigParamRequest): Promise<IDeviceConfigParam> {
         const res = await request<IDeviceConfigParam>(`/devices/${nodeId}/config`, { method: 'PUT', body: JSON.stringify(body) });
         return res.data as IDeviceConfigParam;
+    },
+
+    //
+    // Mesh maintenance
+    //
+    refreshDevice(nodeId: number): Promise<IServiceResponse> {
+        return post(`/devices/${nodeId}/refresh`);
+    },
+
+    rebuildDeviceRoutes(nodeId: number): Promise<IServiceResponse> {
+        return post(`/devices/${nodeId}/rebuild-routes`);
+    },
+
+    rebuildAllRoutes(): Promise<IServiceResponse> {
+        return post('/rebuild-routes');
+    },
+
+    async getRebuildRoutesStatus(): Promise<IRebuildRoutesStatus> {
+        const res = await request<IRebuildRoutesStatus>('/rebuild-routes');
+        return res.data as IRebuildRoutesStatus;
     },
 
     //

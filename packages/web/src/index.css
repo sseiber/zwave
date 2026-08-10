@@ -342,6 +342,12 @@ button:disabled:hover { border-color: var(--border); }
 .sched-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sched-when { flex-shrink: 0; font-weight: 600; }
 
+/* Mesh maintenance actions */
+.mesh-maint { display: flex; flex-direction: column; gap: 0.4rem; margin: 0.5rem 0 0.2rem; }
+.maint-line { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.maint-line button { padding: 0.3rem 0.6rem; font-size: 0.82rem; }
+.maint-line .muted { font-size: 0.78rem; }
+
 /* Rich device state */
 .power-badge {
     color: var(--accent);

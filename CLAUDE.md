@@ -156,6 +156,13 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - `PUT /devices/:nodeId/config` `{ parameter, bitmask?, value }` — set one parameter via
   `node.setValue`; returns the re-read `IDeviceConfigParam`. Read-only params are rejected.
 - `POST /devices/:nodeId/health-check` — active lifeline health check (rating 0-10 + latency/rssi)
+- `POST /devices/:nodeId/refresh` — re-interview the node (`node.refreshInfo`, background;
+  fixes an "unknown"/unidentified device and re-reads its config). Returns 202.
+- `POST /devices/:nodeId/rebuild-routes` — rebuild one node's routes (`controller.rebuildNodeRoutes`)
+- `POST /rebuild-routes` — start a network-wide route rebuild (`beginRebuildingRoutes`,
+  long-running, sequenced by zwave-js); `GET /rebuild-routes` → `IRebuildRoutesStatus`
+  (`{ active, total, done, failed, skipped, pending }`); `POST /rebuild-routes/stop` cancels.
+  Static paths, matched ahead of `/devices/:nodeId`.
 - `GET /devices` items are capability-gated rich state: on/level/targetLevel, firmwareVersion,
   securityClass, `power` (Meter CC), `link` (passive mesh stats: rssi/hops/rtt/lastSeen), `battery`.
   Read in `zwaveController.describeNode`; the health check calls `node.checkLifelineHealth`.
