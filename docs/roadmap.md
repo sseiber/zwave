@@ -1,11 +1,26 @@
 # Roadmap — richer device state, scheduler run times, dashboard
 
-**Status: all three features shipped.** Feature 1 (richer device state) landed in
-1.4.0; Feature 2 (scheduler next/last run times, `GET /scenes/status`) in 1.5.0;
-Feature 3 (Dashboard tab, default) in 1.6.0. Kept below as the design record.
-Build/deploy/git conventions are in
-[CLAUDE.md](../CLAUDE.md); the web UI lives in `packages/web`, the service in
-`packages/service`, shared types in `packages/contracts`.
+> **This document is the design record for the FIRST batch (Features 1–3).** They and
+> several later phases have all shipped — see the running list below. The current
+> forward-looking item is **[Next phase — switch-triggered scenes](#next-phase--switch-triggered-scenes)** at the bottom.
+
+**Shipped since (current version 1.11.0, deployed to the Pi with real devices):**
+
+| Ver | What |
+|---|---|
+| 1.4.0 | F1 — richer device state (Meter/statistics/security/firmware/battery) + health-check |
+| 1.5.0 | F2 — scheduler next/last run times, `GET /scenes/status`, persisted `sceneRuns.json` |
+| 1.6.0 | F3 — Dashboard tab (default) |
+| 1.7.0 / 1.7.1 | Device rename (`node.name`); "#N" → "node N" label |
+| 1.8.0 | Scenes span all devices; `roomId` is an optional label |
+| 1.9.0 | No manual/scheduled mode — every scene is manual-activatable + carries a **list** of schedules |
+| 1.10.0 | Device configuration parameters (Configuration CC) in device Details |
+| 1.11.0 | Mesh maintenance — re-interview (`node.refreshInfo`) + route rebuild |
+
+Plus a tested live-backup script (`setup/deployment/zwave-backup.sh`) and its SIGPIPE
+fix. Build/deploy/git conventions are in [CLAUDE.md](../CLAUDE.md); the web UI lives in
+`packages/web`, the service in `packages/service`, shared types in `packages/contracts`.
+The original Features 1–3 design record is kept below for reference.
 
 ## Target hardware (affects capability-gating)
 
@@ -148,3 +163,50 @@ together.
   poll that actively `Meter.get()`s? (Recommend cached first; active refresh later.)
 - **Run-time persistence**: persist `lastRun` in `scenes.json` (survives restart) vs
   in-memory only (simpler). Recommend persist.
+
+---
+
+# Next phase — switch-triggered scenes
+
+**Not started.** The next feature: pressing a physical wall switch activates a scene.
+Example the user gave — pressing the switch at the top of the basement stairs should
+activate the "basement" scene (turning on a set of basement lights across rooms).
+Double-activating a light the scene shares with the trigger switch is acceptable.
+
+### Mechanism
+- When a switch is physically pressed, the device **reports its new state** to the
+  controller, and zwave-js emits an event. `wireNodeEvents` in
+  [`services/zwaveController.ts`](../packages/service/src/services/zwaveController.ts)
+  currently handles only `ready`/`dead` — extend it to listen for **value updates** on
+  Binary/Multilevel Switch `currentValue`. On a matching transition, activate the bound
+  scene via `zwaveService.applyScene`.
+- Works with any plain switch/dimmer. A richer option for supported devices is
+  **Central Scene CC** (double-tap/triple-tap/hold gestures) — lets you bind a gesture
+  without the normal press changing the trigger's own load. Start with plain
+  `currentValue`; Central Scene can be a follow-up.
+
+### Data model
+- A trigger binding, e.g. `{ deviceId, when: 'on' | 'off', sceneId }`. Persist it —
+  likely a new `triggers.json` in the store (kept off `IScene`, the same way
+  `sceneRuns.json` is), so the stored scene stays a pure user shape.
+
+### ⚠️ Feedback-loop guard (design in from the start)
+If a scene sets a device that is **also** a trigger, a naive listener re-fires forever
+(scene turns switch on → switch reports on → triggers scene again → …). Prevent with a
+combination of:
+- trigger only on a genuine **off→on rising edge** (ignore repeats of the same state);
+- **ignore reports briefly after the service itself commanded** that device (so a
+  scene's own `applyScene` writes don't re-enter the trigger);
+- optionally, don't let a scene re-trigger from a device that scene just set.
+
+### Open decisions to confirm when starting
+- **On-only vs on+off** triggers.
+- **Where bindings live** — separate `triggers.json` store (recommended) vs on the scene.
+- **UI placement** — a "Triggers" section in the scene editor ("activate when device X
+  turns on") vs a device-side "when pressed, run scene Y".
+- **Central Scene gestures** in v1 or deferred.
+
+Follows the established flow: branch → build/lint/verify (Fastify `inject` for the
+service; esbuild + `renderToStaticMarkup` for web, exporting pure helpers to test) →
+bump minor (next: **1.12.0**) + deployment README image tag → PR → rebase-merge →
+multi-arch build/push (`zwavemulti`).
