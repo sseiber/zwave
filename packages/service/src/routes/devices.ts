@@ -208,6 +208,88 @@ const devicesRouterPlugin: FastifyPluginAsync<IDevicesRouterOptions> = async (se
                 }
             });
 
+            //
+            // Mesh maintenance
+            //
+            serverRoute.route<{ Params: IDeviceParams; Reply: IServiceReply }>({
+                method: 'POST',
+                url: '/devices/:nodeId/refresh',
+                schema: {
+                    params: IDeviceParamsSchema,
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = serverRoute.zwaveService.refreshDevice(request.params.nodeId);
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
+            serverRoute.route<{ Params: IDeviceParams; Reply: IServiceReply }>({
+                method: 'POST',
+                url: '/devices/:nodeId/rebuild-routes',
+                schema: {
+                    params: IDeviceParamsSchema,
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = await serverRoute.zwaveService.rebuildDeviceRoutes(request.params.nodeId);
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
+            // Network-wide route rebuild (start / status). A static path, so it is
+            // matched ahead of /devices/:nodeId patterns.
+            serverRoute.route<{ Reply: IServiceReply }>({
+                method: 'POST',
+                url: '/rebuild-routes',
+                schema: {
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = serverRoute.zwaveService.rebuildRoutes();
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
+            serverRoute.route<{ Reply: IServiceReply }>({
+                method: 'GET',
+                url: '/rebuild-routes',
+                schema: {
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = serverRoute.zwaveService.getRebuildRoutesStatus();
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
+            serverRoute.route<{ Reply: IServiceReply }>({
+                method: 'POST',
+                url: '/rebuild-routes/stop',
+                schema: {
+                    response: responseSchema
+                },
+                handler: async (request, response) => {
+                    serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
+
+                    const result = serverRoute.zwaveService.stopRebuildRoutes();
+
+                    return response.status(result.statusCode as 200).send(result);
+                }
+            });
+
             // On-demand mesh health check — actively pings the device, so it is a POST
             serverRoute.route<{ Params: IDeviceParams; Reply: IServiceReply }>({
                 method: 'POST',

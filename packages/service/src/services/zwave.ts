@@ -204,6 +204,85 @@ class ZWaveService {
     }
 
     //
+    // Mesh maintenance
+    //
+    public refreshDevice(nodeId: number): IServiceResponse {
+        try {
+            this.controller.refreshDevice(nodeId);
+
+            return {
+                succeeded: true,
+                statusCode: 202,
+                message: `Re-interview started for device ${nodeId} — it will briefly go offline while it re-interviews`
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`re-interview device ${nodeId}`, ex);
+        }
+    }
+
+    public async rebuildDeviceRoutes(nodeId: number): Promise<IServiceResponse> {
+        try {
+            const ok = await this.controller.rebuildDeviceRoutes(nodeId);
+
+            return {
+                succeeded: ok,
+                statusCode: 200,
+                message: ok ? `Routes rebuilt for device ${nodeId}` : `Route rebuild for device ${nodeId} did not succeed`
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`rebuild routes for device ${nodeId}`, ex);
+        }
+    }
+
+    public rebuildRoutes(): IServiceResponse {
+        try {
+            const started = this.controller.beginRebuildRoutes();
+
+            return {
+                succeeded: started,
+                statusCode: 202,
+                message: started ? `Network route rebuild started` : `A route rebuild is already in progress`
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`start route rebuild`, ex);
+        }
+    }
+
+    public stopRebuildRoutes(): IServiceResponse {
+        try {
+            const stopped = this.controller.stopRebuildRoutes();
+
+            return {
+                succeeded: true,
+                statusCode: 200,
+                message: stopped ? `Route rebuild stopped` : `No route rebuild was in progress`
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`stop route rebuild`, ex);
+        }
+    }
+
+    public getRebuildRoutesStatus(): IServiceResponse {
+        try {
+            const status = this.controller.getRebuildRoutesStatus();
+
+            return {
+                succeeded: true,
+                statusCode: 200,
+                message: status.active ? `Rebuilding routes (${status.done}/${status.total})` : `No route rebuild in progress`,
+                data: status
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`read route rebuild status`, ex);
+        }
+    }
+
+    //
     // Room control - apply an action to a set of devices
     //
     public async controlDevices(deviceIds: number[], action: DeviceAction, level?: number): Promise<IServiceResponse> {

@@ -19,6 +19,7 @@ import {
     IHealthCheckResult,
     IDeviceConfigParam,
     ISetConfigParamRequest,
+    IRebuildRoutesStatus,
     InclusionStrategyOption
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
@@ -48,6 +49,21 @@ interface IConfigMetadata {
     allowManualEntry?: boolean;
     writeable?: boolean;
     isAdvanced?: boolean;
+}
+
+// Summarize a route-rebuild progress map (nodeId -> "pending"|"done"|"failed"|
+// "skipped") into the API status shape. Pure so it can be unit-tested.
+export function summarizeRebuildProgress(progress: ReadonlyMap<number, string> | undefined, active: boolean): IRebuildRoutesStatus {
+    const values = progress ? [...progress.values()] : [];
+
+    return {
+        active,
+        total: values.length,
+        done: values.filter(s => s === 'done').length,
+        failed: values.filter(s => s === 'failed').length,
+        skipped: values.filter(s => s === 'skipped').length,
+        pending: values.filter(s => s === 'pending').length
+    };
 }
 
 // Map a Configuration value's ID + metadata + current value to the API shape. Pure so
@@ -155,6 +171,7 @@ export class ZWaveController {
     private driver: Driver;
     private ready: boolean;
     private pendingInclusionPin: string | undefined;
+    private lastRebuildResult: ReadonlyMap<number, string> | undefined;
 
     constructor(server: FastifyInstance, serialPort: string, storagePath: string, keys: ISecurityKeys) {
         this.server = server;
@@ -163,6 +180,7 @@ export class ZWaveController {
         this.keys = keys;
         this.ready = false;
         this.pendingInclusionPin = undefined;
+        this.lastRebuildResult = undefined;
 
         this.driver = new Driver(this.serialPort, {
             securityKeys: {
@@ -460,6 +478,64 @@ export class ZWaveController {
     }
 
     //
+    // Mesh maintenance (re-interview + route rebuild)
+    //
+
+    // Re-run a node's interview. Runs in the background because it can take a while
+    // (and longer on a weak link); the node goes un-ready and back, and the device
+    // list picks up the refreshed manufacturer/product/config on its next poll.
+    public refreshDevice(nodeId: number): void {
+        this.assertReady();
+
+        const node = this.getNode(nodeId);
+
+        this.server.log.info({ tags: [ControllerName] }, `Re-interviewing device ${nodeId}`);
+
+        void node.refreshInfo().catch((ex) => {
+            this.server.log.error({ tags: [ControllerName] }, `Re-interview of device ${nodeId} failed: ${exMessage(ex)}`);
+        });
+    }
+
+    // Rebuild a single node's routes (bounded; returns success/failure).
+    public async rebuildDeviceRoutes(nodeId: number): Promise<boolean> {
+        this.assertReady();
+
+        this.getNode(nodeId);
+
+        this.server.log.info({ tags: [ControllerName] }, `Rebuilding routes for device ${nodeId}`);
+
+        return this.driver.controller.rebuildNodeRoutes(nodeId);
+    }
+
+    // Start a network-wide route rebuild (long-running; sequenced by zwave-js). Returns
+    // whether it started (false if one is already running).
+    public beginRebuildRoutes(): boolean {
+        this.assertReady();
+
+        const started = this.driver.controller.beginRebuildingRoutes();
+        if (started) {
+            this.lastRebuildResult = undefined;
+            this.server.log.info({ tags: [ControllerName] }, `Network route rebuild started`);
+        }
+
+        return started;
+    }
+
+    public stopRebuildRoutes(): boolean {
+        this.assertReady();
+
+        return this.driver.controller.stopRebuildingRoutes();
+    }
+
+    public getRebuildRoutesStatus(): IRebuildRoutesStatus {
+        const controller = this.driver.controller;
+        const active = controller.isRebuildingRoutes;
+
+        // While active, report live progress; once done, the last completed result.
+        return summarizeRebuildProgress(active ? controller.rebuildRoutesProgress : this.lastRebuildResult, active);
+    }
+
+    //
     // Internal helpers
     //
     private assertReady(): void {
@@ -745,6 +821,13 @@ export class ZWaveController {
 
         controller.on('node removed', (node) => {
             this.server.log.info({ tags: [ControllerName] }, `Node ${node.id} removed`);
+        });
+
+        controller.on('rebuild routes done', (result) => {
+            this.lastRebuildResult = result;
+
+            const summary = summarizeRebuildProgress(result, false);
+            this.server.log.info({ tags: [ControllerName] }, `Route rebuild done: ${summary.done} ok, ${summary.failed} failed, ${summary.skipped} skipped (of ${summary.total})`);
         });
     }
 

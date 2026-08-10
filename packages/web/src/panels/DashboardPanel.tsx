@@ -1,4 +1,5 @@
-import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
+import { useEffect, useState } from 'react';
+import type { IDeviceInfo, IRoom, IScene, ISceneStatus, IRebuildRoutesStatus } from '@zwave-service/contracts';
 import { DeviceAction, DeviceStatus } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
@@ -35,7 +36,7 @@ export function DashboardPanel({ devices, rooms, scenes, statuses, run, refresh,
                     totalWatts={hasPower ? totalWatts : undefined}
                     onNavigate={onNavigate}
                 />
-                <MeshCard devices={devices} onNavigate={onNavigate} />
+                <MeshCard devices={devices} run={run} refresh={refresh} onNavigate={onNavigate} />
                 <RoomsCard rooms={rooms} devices={devices} run={run} refresh={refresh} onNavigate={onNavigate} />
                 <ScheduleCard scenes={scenes} statuses={statuses} onNavigate={onNavigate} />
             </div>
@@ -83,6 +84,8 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'on
 
 interface MeshCardProps {
     devices: IDeviceInfo[];
+    run: RunFn;
+    refresh: () => Promise<void>;
     onNavigate: (tab: 'devices') => void;
 }
 
@@ -94,7 +97,8 @@ function meshRank(device: IDeviceInfo): [number, number] {
     return [deadness, rssi];
 }
 
-function MeshCard({ devices, onNavigate }: MeshCardProps) {
+function MeshCard({ devices, run, refresh, onNavigate }: MeshCardProps) {
+    const unidentified = devices.filter(d => !d.manufacturer);
     const sorted = [...devices].sort((a, b) => {
         const [ad, ar] = meshRank(a);
         const [bd, br] = meshRank(b);
@@ -125,11 +129,107 @@ function MeshCard({ devices, onNavigate }: MeshCardProps) {
                         ))}
                     </ul>
                 )}
+            <div className="mesh-maint">
+                <RebuildControl run={run} />
+                {unidentified.length > 0 && (
+                    <ReinterviewUnidentified devices={unidentified} run={run} refresh={refresh} />
+                )}
+            </div>
+
             <p className="muted hint">
                 Signal accumulates passively; open a device and “Test link” for a fresh reading.
                 {' '}
                 <button className="link-btn" onClick={() => onNavigate('devices')}>Devices →</button>
             </p>
+        </div>
+    );
+}
+
+// Start + track a network-wide route rebuild. Useful after relocating the controller,
+// when devices are still routing through stale (slow) paths.
+function RebuildControl({ run }: { run: RunFn }) {
+    const [status, setStatus] = useState<IRebuildRoutesStatus | null>(null);
+    const [polling, setPolling] = useState(false);
+
+    // Reflect an already-running rebuild on mount
+    useEffect(() => {
+        let alive = true;
+        void api.getRebuildRoutesStatus().then(st => {
+            if (alive) {
+                setStatus(st);
+                if (st.active) {
+                    setPolling(true);
+                }
+            }
+        }).catch(() => { /* ignore */ });
+        return () => { alive = false; };
+    }, []);
+
+    useEffect(() => {
+        if (!polling) {
+            return;
+        }
+        let alive = true;
+        const tick = async (): Promise<void> => {
+            try {
+                const st = await api.getRebuildRoutesStatus();
+                if (!alive) {
+                    return;
+                }
+                setStatus(st);
+                if (!st.active) {
+                    setPolling(false);
+                }
+            }
+            catch { /* ignore transient errors */ }
+        };
+        const id = setInterval(() => void tick(), 3000);
+        return () => { alive = false; clearInterval(id); };
+    }, [polling]);
+
+    const start = async (): Promise<void> => {
+        if (await run(() => api.rebuildAllRoutes())) {
+            setPolling(true);
+        }
+    };
+
+    return (
+        <div className="maint-line">
+            <button onClick={() => void start()} disabled={polling}>
+                {polling ? 'Rebuilding routes…' : 'Rebuild all routes'}
+            </button>
+            {status && (status.active
+                ? <span className="muted">Rebuilding {status.done + status.failed + status.skipped}/{status.total}</span>
+                : status.total > 0 && <span className="muted">Last: {status.done} ok · {status.failed} failed · {status.skipped} skipped</span>)}
+        </div>
+    );
+}
+
+// Sequentially re-interview the unidentified nodes (spaced out so their interviews
+// don't all start at once and flood a struggling mesh).
+function ReinterviewUnidentified({ devices, run, refresh }: { devices: IDeviceInfo[]; run: RunFn; refresh: () => Promise<void> }) {
+    const [running, setRunning] = useState(false);
+
+    const start = async (): Promise<void> => {
+        setRunning(true);
+        try {
+            for (const device of devices) {
+                await run(() => api.refreshDevice(device.nodeId));
+                await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+            await refresh();
+        }
+        finally {
+            setRunning(false);
+        }
+    };
+
+    return (
+        <div className="maint-line">
+            <button onClick={() => void start()} disabled={running}>
+                {running ? 'Re-interviewing…' : `Re-interview ${devices.length} unidentified`}
+            </button>
+            <span className="muted">devices with no manufacturer/model — often a timed-out interview</span>
         </div>
     );
 }

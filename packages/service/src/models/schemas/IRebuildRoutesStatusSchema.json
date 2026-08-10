@@ -1,0 +1,39 @@
+{
+  "$id": "IRebuildRoutesStatus",
+  "$ref": "#/definitions/IRebuildRoutesStatus",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IRebuildRoutesStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "done": {
+          "type": "number"
+        },
+        "failed": {
+          "type": "number"
+        },
+        "pending": {
+          "type": "number"
+        },
+        "skipped": {
+          "type": "number"
+        },
+        "total": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "active",
+        "total",
+        "done",
+        "failed",
+        "skipped",
+        "pending"
+      ],
+      "type": "object"
+    }
+  }
+}
