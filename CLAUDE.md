@@ -43,6 +43,13 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - Loads or generates S2/S0 (and Long Range) security keys from `${zwaveStorage}/securityKeys.json`
    - Owns inclusion/exclusion, device discovery, and Binary/Multilevel Switch control
    - Maps device REST levels (0-100) to Z-Wave Multilevel Switch levels (0-99)
+   - Also: device rename (`node.name`), rich state (Meter/statistics/etc. in
+     `describeNode`), lifeline health check, Configuration CC read/write
+     (`describeConfigParam` + `listConfigParams`/`setConfigParam`), and mesh
+     maintenance (re-interview via `node.refreshInfo`; route rebuild via
+     `controller.rebuildNodeRoutes`/`beginRebuildingRoutes`)
+   - `wireNodeEvents` currently handles only `ready`/`dead` — the planned
+     switch-triggered-scene work hooks node value-change events here
 
 3. **Z-Wave Service** (`services/zwave.ts`)
    - `fastify-plugin` decorating `server.zwaveService`
