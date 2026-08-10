@@ -71,12 +71,19 @@ Security (S2/S0) keys are generated on first run and saved to
 In the deployed image the service serves the React web client at the root URL —
 open `http://<host>:9094/` (e.g. `http://zwave:9094/`). The API lives under `/api/v1`.
 
-Three tabs:
+Four tabs (the SPA opens on **Dashboard**):
 
-- **Devices** — live device state, on/off/dim control, and insecure inclusion.
+- **Dashboard** — devices-at-a-glance + total power draw, a mesh-health overview
+  (weakest/troubled nodes flagged), per-room quick on/off, upcoming/recent scheduled
+  runs, and **mesh maintenance** (rebuild all routes, re-interview unidentified nodes).
+- **Devices** — live device state, on/off/dim control, and insecure inclusion. Each
+  device's **Details** adds rename, energy/mesh stats, an active link test,
+  **Configuration** parameters (device-specific settings like dimmer ramp rate), and
+  maintenance (re-interview, rebuild routes).
 - **Rooms** — create/edit rooms (name + device picker), all-on/all-off per room, delete.
-- **Scenes** — create/edit scenes (name, room, trigger, and per-device action:
-  on/off/dim level), plus **Activate** to test a scene immediately.
+- **Scenes** — create/edit scenes that can span **any** devices (the room is an
+  optional label), each with a per-device on/off/dim action. A scene is always
+  **Activate**-able on demand, and can carry any number of **schedules**.
 
 ## API
 
@@ -106,14 +113,26 @@ After calling `start`, activate inclusion/exclusion on the physical device.
 
 ### Devices
 
-| Method | Route                           | Body                              |
-| ------ | ------------------------------- | --------------------------------- |
-| GET    | `/devices`                      | list all included devices + state |
-| GET    | `/devices/:nodeId`              | one device                        |
-| POST   | `/devices/:nodeId/control`      | `{ "action": "on"\|"off"\|"dim", "level"? }` |
-| POST   | `/devices/:nodeId/health-check` | actively pings the device; returns a link-health rating |
+| Method | Route                             | Body                              |
+| ------ | --------------------------------- | --------------------------------- |
+| GET    | `/devices`                        | list all included devices + state |
+| GET    | `/devices/:nodeId`                | one device                        |
+| PUT    | `/devices/:nodeId`                | `{ "name" }` — rename (stored in the network cache; empty clears it) |
+| POST   | `/devices/:nodeId/control`        | `{ "action": "on"\|"off"\|"dim", "level"? }` |
+| GET    | `/devices/:nodeId/config`         | Configuration CC parameters (named per device); `[]` if unsupported |
+| PUT    | `/devices/:nodeId/config`         | `{ "parameter", "bitmask"?, "value" }` — set one parameter |
+| POST   | `/devices/:nodeId/health-check`   | actively pings the device; returns a link-health rating |
+| POST   | `/devices/:nodeId/refresh`        | re-interview the node (fixes an "unknown" device, re-reads config) |
+| POST   | `/devices/:nodeId/rebuild-routes` | rebuild this node's routes |
 
 `level` is `0-100` and required for `dim` (dimmers only).
+
+**Mesh maintenance (network-wide):** `POST /rebuild-routes` starts a route rebuild
+across all nodes, `GET /rebuild-routes` reports progress
+(`{ active, total, done, failed, skipped, pending }`), `POST /rebuild-routes/stop`
+cancels. Config parameter names/ranges/options come from the zwave-js device database,
+so an unidentified device (`manufacturer`/`product` null) shows few/no named
+parameters until it is re-interviewed.
 
 Each device includes the state the driver reports, **capability-gated** (present only
 if the device supports it — expect older/first-gen devices to report less):
@@ -134,27 +153,33 @@ fresh, actively-measured `{ rating (0-10), latencyMs, failedPings, numNeighbors,
 | DELETE | `/rooms/:roomId`         | delete                                 |
 | POST   | `/rooms/:roomId/control` | `{ "action", "level"? }` applied to all devices in the room |
 
-### Scenes (a named set of device actions, belonging to a room)
+### Scenes (a named set of device actions across any devices)
 
 | Method | Route                      | Body                                                                              |
 | ------ | -------------------------- | --------------------------------------------------------------------------------- |
 | GET    | `/scenes`                  | list                                                                              |
-| POST   | `/scenes`                  | `{ "name", "roomId", "trigger", "devices": [{ "deviceId", "action", "level"? }] }` |
+| GET    | `/scenes/status`           | per-scene runtime `{ sceneId, nextRun?, lastRun?, lastResult? }`                   |
+| POST   | `/scenes`                  | `{ "name", "roomId"?, "schedules"?, "devices": [{ "deviceId", "action", "level"? }] }` |
 | GET    | `/scenes/:sceneId`         | one scene                                                                         |
-| PUT    | `/scenes/:sceneId`         | `{ "name"?, "roomId"?, "trigger"?, "devices"? }`                                   |
+| PUT    | `/scenes/:sceneId`         | `{ "name"?, "roomId"?, "schedules"?, "devices"? }`                                 |
 | DELETE | `/scenes/:sceneId`         | delete                                                                            |
 | POST   | `/scenes/:sceneId/activate`| apply each participating device's action                                          |
 
-- `roomId` — the room the scene belongs to (required).
-- `trigger` — `manual` (activate on demand) or `scheduled` (run automatically by the
-  scheduler). A `scheduled` scene requires a valid `schedule`; invalid ones are
-  rejected with a 400 rather than silently never firing.
+- A scene's `devices` can span **any** rooms, or none. `roomId` is an **optional
+  organizational label** — it does not constrain which devices a scene controls (a
+  catch-all like `House.Off` has no room).
+- Every scene is always manually activatable (`/scenes/:sceneId/activate`). There is no
+  manual/scheduled mode: `schedules` is an optional **list** and each entry
+  independently fires the scene (e.g. 90 min before sunset **and** 60 min before
+  sunrise). Invalid entries are rejected with a 400 that names the offending entry.
+- `GET /scenes/status` reports the **soonest** upcoming run across a scene's schedules
+  plus the last run/result (both manual and scheduled activations are recorded).
 - `devices[].action` — `on` | `off` | `dim`. `level` (0-100) is required for `dim`
   and applies to dimmers only.
 
 #### Schedules
 
-`schedule.kind` is one of:
+Each entry in a scene's `schedules` array has a `kind`, one of:
 
 | Kind | Fields | Example |
 | ---- | ------ | ------- |
@@ -162,7 +187,7 @@ fresh, actively-measured `{ rating (0-10), latencyMs, failedPings, numNeighbors,
 | `daily` | `timeOfDay` | `{ "kind": "daily", "timeOfDay": { "kind": "clock", "time": "19:00" } }` |
 | `weekly` | `daysOfWeek` (0=Sun…6=Sat), `timeOfDay` | `{ "kind": "weekly", "daysOfWeek": [1,5], "timeOfDay": { "kind": "sunset" } }` |
 | `monthly` | `daysOfMonth` (1-31), `timeOfDay` | `{ "kind": "monthly", "daysOfMonth": [1,15], "timeOfDay": { "kind": "clock", "time": "06:00" } }` |
-| `once` | `at` (ISO date-time, must be future) | `{ "kind": "once", "at": "2026-07-20T08:00:00Z" }` |
+| `once` | `at` (ISO date-time, must be future) | `{ "kind": "once", "at": "2027-01-01T08:00:00Z" }` |
 
 `timeOfDay` is either a wall-clock time or a solar event with an optional offset:
 
