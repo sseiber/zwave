@@ -170,6 +170,13 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
   long-running, sequenced by zwave-js); `GET /rebuild-routes` → `IRebuildRoutesStatus`
   (`{ active, total, done, failed, skipped, pending }`); `POST /rebuild-routes/stop` cancels.
   Static paths, matched ahead of `/devices/:nodeId`.
+- `POST /config-db/check` → `IConfigDbStatus { updateAvailable, version? }` and
+  `POST /config-db/install` — refresh the zwave-js device-config database at runtime
+  (`Driver.checkForConfigUpdates`/`installConfigUpdate`; needs `deviceConfigExternalDir`,
+  set to `${zwaveStorage}/config`). Lets a device whose model wasn't in the bundled DB
+  identify + get named config params; **re-interview the device after installing** to
+  apply it. `GET /devices` items also expose raw `manufacturerId`/`productType`/`productId`
+  (hex) — present once interviewed even when `manufacturer`/`product` are null.
 - `GET /devices` items are capability-gated rich state: on/level/targetLevel, firmwareVersion,
   securityClass, `power` (Meter CC), `link` (passive mesh stats: rssi/hops/rtt/lastSeen), `battery`.
   Read in `zwaveController.describeNode`; the health check calls `node.checkLifelineHealth`.

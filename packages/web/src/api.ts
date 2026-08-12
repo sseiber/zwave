@@ -6,6 +6,7 @@ import type {
     ISetConfigParamRequest,
     IHealthCheckResult,
     IRebuildRoutesStatus,
+    IConfigDbStatus,
     IInclusionRequest,
     IRoom,
     ICreateRoomRequest,
@@ -100,6 +101,15 @@ export const api = {
     async getRebuildRoutesStatus(): Promise<IRebuildRoutesStatus> {
         const res = await request<IRebuildRoutesStatus>('/rebuild-routes');
         return res.data as IRebuildRoutesStatus;
+    },
+
+    async checkConfigDbUpdate(): Promise<IConfigDbStatus> {
+        const res = await request<IConfigDbStatus>('/config-db/check', { method: 'POST' });
+        return res.data as IConfigDbStatus;
+    },
+
+    installConfigDbUpdate(): Promise<IServiceResponse> {
+        return post('/config-db/install');
     },
 
     //

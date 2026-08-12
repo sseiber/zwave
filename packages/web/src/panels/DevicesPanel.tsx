@@ -202,8 +202,13 @@ function DeviceDetail({ device, run, refresh }: DeviceDetailProps) {
             <RenameRow device={device} run={run} refresh={refresh} />
 
             <dl>
-                {device.manufacturer && <Row label="Manufacturer" value={device.manufacturer} />}
+                {device.manufacturer
+                    ? <Row label="Manufacturer" value={device.manufacturer} />
+                    : device.manufacturerId && <Row label="Manufacturer" value="Unknown (not in device database)" />}
                 {device.product && <Row label="Product" value={device.product} />}
+                {device.manufacturerId && (
+                    <Row label="Device IDs" value={`${device.manufacturerId} : ${device.productType} : ${device.productId}`} />
+                )}
                 {device.firmwareVersion && <Row label="Firmware" value={device.firmwareVersion} />}
                 {device.securityClass && <Row label="Security" value={device.securityClass} />}
                 {device.battery?.level !== undefined && (

@@ -282,6 +282,39 @@ class ZWaveService {
         }
     }
 
+    public async checkConfigDbUpdate(): Promise<IServiceResponse> {
+        try {
+            const status = await this.controller.checkConfigDbUpdate();
+
+            return {
+                succeeded: true,
+                statusCode: 200,
+                message: status.updateAvailable ? `Device-database update available (${status.version})` : `Device database is up to date`,
+                data: status
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`check for device-database updates`, ex);
+        }
+    }
+
+    public async installConfigDbUpdate(): Promise<IServiceResponse> {
+        try {
+            const installed = await this.controller.installConfigDbUpdate();
+
+            return {
+                succeeded: installed,
+                statusCode: 200,
+                message: installed
+                    ? `Device database updated — re-interview affected devices to apply it`
+                    : `No device-database update was installed (already up to date?)`
+            };
+        }
+        catch (ex) {
+            return this.errorResponse(`install device-database update`, ex);
+        }
+    }
+
     //
     // Room control - apply an action to a set of devices
     //
