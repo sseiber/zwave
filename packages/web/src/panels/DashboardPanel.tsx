@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { IDeviceInfo, IRoom, IScene, ISceneStatus, IRebuildRoutesStatus } from '@zwave-service/contracts';
+import type { IDeviceInfo, IRoom, IScene, ISceneStatus, IRebuildRoutesStatus, IConfigDbStatus } from '@zwave-service/contracts';
 import { DeviceAction, DeviceStatus } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
@@ -134,6 +134,7 @@ function MeshCard({ devices, run, refresh, onNavigate }: MeshCardProps) {
                 {unidentified.length > 0 && (
                     <ReinterviewUnidentified devices={unidentified} run={run} refresh={refresh} />
                 )}
+                <ConfigDbControl run={run} />
             </div>
 
             <p className="muted hint">
@@ -201,6 +202,56 @@ function RebuildControl({ run }: { run: RunFn }) {
             {status && (status.active
                 ? <span className="muted">Rebuilding {status.done + status.failed + status.skipped}/{status.total}</span>
                 : status.total > 0 && <span className="muted">Last: {status.done} ok · {status.failed} failed · {status.skipped} skipped</span>)}
+        </div>
+    );
+}
+
+// Check/install a zwave-js device-config-database update. A newer DB can identify
+// devices (and give them named config params) whose model wasn't in the bundled one.
+function ConfigDbControl({ run }: { run: RunFn }) {
+    const [status, setStatus] = useState<IConfigDbStatus | null>(null);
+    const [busy, setBusy] = useState<'check' | 'install' | null>(null);
+
+    const check = async (): Promise<void> => {
+        setBusy('check');
+        try {
+            let result: IConfigDbStatus | null = null;
+            await run(async () => {
+                result = await api.checkConfigDbUpdate();
+                return { message: result.updateAvailable ? `Device-database update available (${result.version})` : 'Device database is up to date' };
+            });
+            if (result) {
+                setStatus(result);
+            }
+        }
+        finally {
+            setBusy(null);
+        }
+    };
+
+    const install = async (): Promise<void> => {
+        setBusy('install');
+        try {
+            if (await run(() => api.installConfigDbUpdate())) {
+                setStatus({ updateAvailable: false });
+            }
+        }
+        finally {
+            setBusy(null);
+        }
+    };
+
+    return (
+        <div className="maint-line">
+            <button onClick={() => void check()} disabled={busy !== null}>
+                {busy === 'check' ? 'Checking…' : 'Check device-DB update'}
+            </button>
+            {status?.updateAvailable && (
+                <button onClick={() => void install()} disabled={busy !== null}>
+                    {busy === 'install' ? 'Installing…' : `Install ${status.version ?? 'update'}`}
+                </button>
+            )}
+            <span className="muted">refreshes named device parameters; re-interview a device after installing</span>
         </div>
     );
 }

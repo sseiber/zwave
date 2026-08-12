@@ -1,0 +1,22 @@
+{
+  "$id": "IConfigDbStatus",
+  "$ref": "#/definitions/IConfigDbStatus",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IConfigDbStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "updateAvailable": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "updateAvailable"
+      ],
+      "type": "object"
+    }
+  }
+}

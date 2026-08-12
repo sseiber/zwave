@@ -10,6 +10,7 @@ export {
     IDeviceLink,
     IDeviceBattery,
     IHealthCheckResult,
+    IConfigDbStatus,
     IRebuildRoutesStatus,
     IDeviceParams,
     IDeviceControlRequest,

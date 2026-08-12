@@ -54,6 +54,9 @@
         "manufacturer": {
           "type": "string"
         },
+        "manufacturerId": {
+          "type": "string"
+        },
         "name": {
           "type": "string"
         },
@@ -67,6 +70,12 @@
           "$ref": "#/definitions/IDevicePower"
         },
         "product": {
+          "type": "string"
+        },
+        "productId": {
+          "type": "string"
+        },
+        "productType": {
           "type": "string"
         },
         "ready": {

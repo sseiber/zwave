@@ -20,6 +20,7 @@ import {
     IDeviceConfigParam,
     ISetConfigParamRequest,
     IRebuildRoutesStatus,
+    IConfigDbStatus,
     InclusionStrategyOption
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
@@ -28,6 +29,9 @@ export const ControllerName = 'zwaveController';
 
 const SecurityKeysFileName = 'securityKeys.json';
 const CacheDirName = 'cache';
+// Writable dir for device-config-DB updates pulled via Driver.installConfigUpdate();
+// on the storage volume so an updated device database survives restarts.
+const ConfigDirName = 'config';
 
 // Z-Wave Multilevel Switch values are 0-99 (0 = off, 99 = full brightness)
 const ZWaveMaxLevel = 99;
@@ -49,6 +53,11 @@ interface IConfigMetadata {
     allowManualEntry?: boolean;
     writeable?: boolean;
     isAdvanced?: boolean;
+}
+
+// Format a raw Manufacturer Specific CC id as 4-digit hex (e.g. 0x0063), or undefined.
+export function toHexId(id: number | undefined): string | undefined {
+    return typeof id === 'number' ? `0x${id.toString(16).padStart(4, '0')}` : undefined;
 }
 
 // Summarize a route-rebuild progress map (nodeId -> "pending"|"done"|"failed"|
@@ -111,6 +120,10 @@ export class ZWaveController {
         server.log.info({ tags: [ControllerName] }, `Creating Z-Wave controller on serial port ${serialPort}`);
 
         const keys = await ZWaveController.loadOrCreateKeys(server, storagePath);
+
+        // Ensure the external device-config dir exists before the driver starts, so a
+        // fresh install (empty dir) doesn't trip driver startup
+        await fse.ensureDir(pathResolve(storagePath, ConfigDirName));
 
         const controller = new ZWaveController(server, serialPort, storagePath, keys);
 
@@ -194,7 +207,10 @@ export class ZWaveController {
                 S2_AccessControl: Buffer.from(this.keys.LR_S2_AccessControl, 'hex')
             },
             storage: {
-                cacheDir: pathResolve(this.storagePath, CacheDirName)
+                cacheDir: pathResolve(this.storagePath, CacheDirName),
+                // Enables Driver.installConfigUpdate() to refresh the device database
+                // (adds/updates named config params for devices) without a lib bump
+                deviceConfigExternalDir: pathResolve(this.storagePath, ConfigDirName)
             },
             inclusionUserCallbacks: {
                 grantSecurityClasses: async requested => await Promise.resolve(requested),
@@ -536,6 +552,25 @@ export class ZWaveController {
     }
 
     //
+    // Device-config database (refresh named device parameters without a lib bump)
+    //
+    public async checkConfigDbUpdate(): Promise<IConfigDbStatus> {
+        this.assertReady();
+
+        const version = await this.driver.checkForConfigUpdates();
+
+        return { updateAvailable: version !== undefined, version };
+    }
+
+    public async installConfigDbUpdate(): Promise<boolean> {
+        this.assertReady();
+
+        this.server.log.info({ tags: [ControllerName] }, `Installing device-config database update`);
+
+        return this.driver.installConfigUpdate();
+    }
+
+    //
     // Internal helpers
     //
     private assertReady(): void {
@@ -576,7 +611,10 @@ export class ZWaveController {
             status: this.mapNodeStatus(node.status),
             ready: node.ready,
             manufacturer: node.deviceConfig?.manufacturer,
-            product: node.deviceConfig?.label
+            product: node.deviceConfig?.label,
+            manufacturerId: toHexId(node.manufacturerId),
+            productType: toHexId(node.productType),
+            productId: toHexId(node.productId)
         };
 
         if (type === DeviceType.Dimmer) {

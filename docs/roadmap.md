@@ -208,5 +208,5 @@ combination of:
 
 Follows the established flow: branch → build/lint/verify (Fastify `inject` for the
 service; esbuild + `renderToStaticMarkup` for web, exporting pure helpers to test) →
-bump minor (next: **1.12.0**) + deployment README image tag → PR → rebase-merge →
+bump minor (next: **1.13.0**) + deployment README image tag → PR → rebase-merge →
 multi-arch build/push (`zwavemulti`).

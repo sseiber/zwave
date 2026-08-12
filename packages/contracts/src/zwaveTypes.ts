@@ -77,8 +77,16 @@ export interface IDeviceInfo {
     level?: number;
     // While a dimmer is ramping, the target differs from the current `level`
     targetLevel?: number;
+    // Human-readable name + label, present only when the device is matched to a
+    // zwave-js config file (else the device shows as "unknown")
     manufacturer?: string;
     product?: string;
+    // Raw Manufacturer Specific CC IDs (hex, e.g. '0x0063'), present once the node is
+    // interviewed even if no config file matches. Useful to identify an "unknown"
+    // device and look it up in the zwave-js device database.
+    manufacturerId?: string;
+    productType?: string;
+    productId?: string;
     firmwareVersion?: string;
     // Human-readable security class the device joined with (e.g. 'None (insecure)')
     securityClass?: string;
@@ -100,6 +108,15 @@ export interface IRebuildRoutesStatus {
     failed: number;
     skipped: number;
     pending: number;
+}
+
+// Status of the zwave-js device-configuration database (POST /config-db/check).
+// zwave-js names/describes device parameters from this DB; refreshing it can identify
+// devices whose model wasn't in the bundled version.
+export interface IConfigDbStatus {
+    updateAvailable: boolean;
+    // The newer config-DB version available to install, when updateAvailable is true
+    version?: string;
 }
 
 // Result of an on-demand lifeline health check (POST /devices/:nodeId/health-check).
