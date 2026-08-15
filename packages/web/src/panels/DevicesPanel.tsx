@@ -4,7 +4,8 @@ import { DeviceAction, DeviceType } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 import { relativeTime, signal, round } from '../format.ts';
-import { Maintenance } from './Maintenance.tsx';
+import { ActionMenu } from './ActionMenu.tsx';
+import { MaintenanceStatus, maintenanceMenuItems, useMaintenance } from './Maintenance.tsx';
 
 interface DevicesPanelProps {
     devices: IDeviceInfo[];
@@ -14,6 +15,8 @@ interface DevicesPanelProps {
 
 export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
     const [including, setIncluding] = useState(false);
+    const [maintState, maintActions] = useMaintenance({ devices, run, refresh });
+    const unidentifiedCount = devices.filter(d => !d.manufacturer).length;
 
     const control = async (nodeId: number, action: DeviceAction, level?: number): Promise<void> => {
         if (await run(() => api.controlDevice(nodeId, { action, level }))) {
@@ -40,12 +43,20 @@ export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
                 <h2>Devices</h2>
                 {including
                     ? <button className="warn" onClick={() => void stopInclusion()}>Stop inclusion</button>
-                    : <button className="primary" onClick={() => void startInclusion()}>Add device (insecure)</button>}
+                    : (
+                        <ActionMenu
+                            label="Device actions"
+                            items={[
+                                { label: 'Add device', onSelect: () => void startInclusion(), hint: 'insecure inclusion' },
+                                ...maintenanceMenuItems(maintState, maintActions, unidentifiedCount)
+                            ]}
+                        />
+                    )}
             </div>
 
             {including && <div className="banner status">Inclusion is active — activate pairing on the physical device now.</div>}
 
-            <Maintenance devices={devices} run={run} refresh={refresh} />
+            <MaintenanceStatus state={maintState} actions={maintActions} />
 
             {devices.length === 0
                 ? <p className="muted">No devices yet. Use “Add device” and pair a switch or dimmer.</p>

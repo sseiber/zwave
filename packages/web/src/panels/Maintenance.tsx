@@ -1,174 +1,260 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IDeviceInfo, IRebuildRoutesStatus, IConfigDbStatus } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 
 //
 // Mesh maintenance — occasional, deliberate operations (route rebuild, device-database
-// update, re-interviewing unidentified nodes). These used to sit on the Dashboard,
-// where they took up more room than the health summary they were attached to. They
-// live with the device list now, collapsed by default.
+// update, re-interviewing unidentified nodes).
+//
+// These are exposed as menu actions rather than a block of buttons: the work is rare,
+// but while it is running it needs to be visible, so anything in flight surfaces in a
+// status strip under the panel header. (A dedicated settings screen is the eventual
+// home for the two that aren't really about devices.)
 //
 
-interface MaintenanceProps {
+// Gap between re-interviews, so a struggling mesh isn't flooded with them at once
+const ReinterviewSpacingMs = 1500;
+
+interface MaintenanceState {
+    rebuild: IRebuildRoutesStatus | null;
+    rebuilding: boolean;
+    // Set once a rebuild finishes during this session, until dismissed
+    rebuildSummary: string | null;
+    configDb: IConfigDbStatus | null;
+    configBusy: 'check' | 'install' | null;
+    reinterviewing: number;
+}
+
+export interface MaintenanceActions {
+    startRebuild: () => void;
+    checkConfigDb: () => void;
+    installConfigDb: () => void;
+    reinterviewUnidentified: () => void;
+    dismissRebuildSummary: () => void;
+}
+
+interface UseMaintenanceOptions {
     devices: IDeviceInfo[];
     run: RunFn;
     refresh: () => Promise<void>;
 }
 
-export function Maintenance({ devices, run, refresh }: MaintenanceProps) {
+export function useMaintenance({ devices, run, refresh }: UseMaintenanceOptions): [MaintenanceState, MaintenanceActions] {
+    const [rebuild, setRebuild] = useState<IRebuildRoutesStatus | null>(null);
+    const [rebuilding, setRebuilding] = useState(false);
+    const [rebuildSummary, setRebuildSummary] = useState<string | null>(null);
+    const [configDb, setConfigDb] = useState<IConfigDbStatus | null>(null);
+    const [configBusy, setConfigBusy] = useState<'check' | 'install' | null>(null);
+    const [reinterviewing, setReinterviewing] = useState(0);
+
+    // Devices without a manufacturer/model — usually a timed-out interview
     const unidentified = devices.filter(d => !d.manufacturer);
+    const unidentifiedRef = useRef(unidentified);
+    unidentifiedRef.current = unidentified;
 
-    return (
-        <details className="maint">
-            <summary>Mesh maintenance</summary>
-
-            <div className="maint-body">
-                <RebuildControl run={run} />
-                {unidentified.length > 0 && (
-                    <ReinterviewUnidentified devices={unidentified} run={run} refresh={refresh} />
-                )}
-                <ConfigDbControl run={run} />
-            </div>
-        </details>
-    );
-}
-
-// Start + track a network-wide route rebuild. Useful after relocating the controller,
-// when devices are still routing through stale (slow) paths.
-function RebuildControl({ run }: { run: RunFn }) {
-    const [status, setStatus] = useState<IRebuildRoutesStatus | null>(null);
-    const [polling, setPolling] = useState(false);
-
-    // Reflect an already-running rebuild on mount
+    // Reflect a rebuild that was already running (e.g. after a page reload)
     useEffect(() => {
         let alive = true;
-        void api.getRebuildRoutesStatus().then(st => {
+
+        void api.getRebuildRoutesStatus().then(status => {
             if (alive) {
-                setStatus(st);
-                if (st.active) {
-                    setPolling(true);
-                }
+                setRebuild(status);
+                setRebuilding(status.active);
             }
         }).catch(() => { /* ignore */ });
+
         return () => { alive = false; };
     }, []);
 
     useEffect(() => {
-        if (!polling) {
+        if (!rebuilding) {
             return;
         }
+
         let alive = true;
+
         const tick = async (): Promise<void> => {
             try {
-                const st = await api.getRebuildRoutesStatus();
+                const status = await api.getRebuildRoutesStatus();
                 if (!alive) {
                     return;
                 }
-                setStatus(st);
-                if (!st.active) {
-                    setPolling(false);
+
+                setRebuild(status);
+
+                if (!status.active) {
+                    setRebuilding(false);
+                    setRebuildSummary(`Route rebuild finished — ${status.done} ok · ${status.failed} failed · ${status.skipped} skipped`);
                 }
             }
             catch { /* ignore transient errors */ }
         };
+
         const id = setInterval(() => void tick(), 3000);
+
         return () => { alive = false; clearInterval(id); };
-    }, [polling]);
+    }, [rebuilding]);
 
-    const start = async (): Promise<void> => {
-        if (await run(() => api.rebuildAllRoutes())) {
-            setPolling(true);
-        }
-    };
+    const startRebuild = useCallback(() => {
+        void (async () => {
+            setRebuildSummary(null);
 
-    return (
-        <div className="maint-line">
-            <button onClick={() => void start()} disabled={polling}>
-                {polling ? 'Rebuilding routes…' : 'Rebuild all routes'}
-            </button>
-            {status && (status.active
-                ? <span className="muted">Rebuilding {status.done + status.failed + status.skipped}/{status.total}</span>
-                : status.total > 0 && <span className="muted">Last: {status.done} ok · {status.failed} failed · {status.skipped} skipped</span>)}
-        </div>
-    );
+            if (await run(() => api.rebuildAllRoutes())) {
+                setRebuilding(true);
+            }
+        })();
+    }, [run]);
+
+    const checkConfigDb = useCallback(() => {
+        void (async () => {
+            setConfigBusy('check');
+
+            try {
+                let result: IConfigDbStatus | null = null;
+
+                await run(async () => {
+                    result = await api.checkConfigDbUpdate();
+
+                    return { message: result.updateAvailable ? `Device-database update available (${result.version})` : 'Device database is up to date' };
+                });
+
+                if (result) {
+                    setConfigDb(result);
+                }
+            }
+            finally {
+                setConfigBusy(null);
+            }
+        })();
+    }, [run]);
+
+    const installConfigDb = useCallback(() => {
+        void (async () => {
+            setConfigBusy('install');
+
+            try {
+                if (await run(() => api.installConfigDbUpdate())) {
+                    setConfigDb({ updateAvailable: false });
+                }
+            }
+            finally {
+                setConfigBusy(null);
+            }
+        })();
+    }, [run]);
+
+    const reinterviewUnidentified = useCallback(() => {
+        void (async () => {
+            const targets = [...unidentifiedRef.current];
+
+            setReinterviewing(targets.length);
+
+            try {
+                for (const device of targets) {
+                    await run(() => api.refreshDevice(device.nodeId));
+                    await new Promise(resolve => setTimeout(resolve, ReinterviewSpacingMs));
+
+                    setReinterviewing(remaining => remaining - 1);
+                }
+
+                await refresh();
+            }
+            finally {
+                setReinterviewing(0);
+            }
+        })();
+    }, [run, refresh]);
+
+    const dismissRebuildSummary = useCallback(() => setRebuildSummary(null), []);
+
+    return [
+        { rebuild, rebuilding, rebuildSummary, configDb, configBusy, reinterviewing },
+        { startRebuild, checkConfigDb, installConfigDb, reinterviewUnidentified, dismissRebuildSummary }
+    ];
 }
 
-// Check/install a zwave-js device-config-database update. A newer DB can identify
-// devices (and give them named config params) whose model wasn't in the bundled one.
-function ConfigDbControl({ run }: { run: RunFn }) {
-    const [status, setStatus] = useState<IConfigDbStatus | null>(null);
-    const [busy, setBusy] = useState<'check' | 'install' | null>(null);
+// Menu entries for the maintenance actions, in the order they belong in the panel menu
+export function maintenanceMenuItems(
+    state: MaintenanceState,
+    actions: MaintenanceActions,
+    unidentifiedCount: number
+): { label: string; onSelect: () => void; disabled?: boolean; hint?: string }[] {
+    const items = [
+        {
+            label: state.rebuilding ? 'Rebuilding routes…' : 'Rebuild all routes',
+            onSelect: actions.startRebuild,
+            disabled: state.rebuilding,
+            hint: 'long-running; fixes stale routing'
+        },
+        {
+            label: state.configBusy === 'check' ? 'Checking…' : 'Check device-DB update',
+            onSelect: actions.checkConfigDb,
+            disabled: state.configBusy !== null,
+            hint: 'refreshes named device parameters'
+        }
+    ];
 
-    const check = async (): Promise<void> => {
-        setBusy('check');
-        try {
-            let result: IConfigDbStatus | null = null;
-            await run(async () => {
-                result = await api.checkConfigDbUpdate();
-                return { message: result.updateAvailable ? `Device-database update available (${result.version})` : 'Device database is up to date' };
-            });
-            if (result) {
-                setStatus(result);
-            }
-        }
-        finally {
-            setBusy(null);
-        }
-    };
+    if (unidentifiedCount > 0) {
+        items.push({
+            label: `Re-interview ${unidentifiedCount} unidentified`,
+            onSelect: actions.reinterviewUnidentified,
+            disabled: state.reinterviewing > 0,
+            hint: 'devices with no manufacturer/model'
+        });
+    }
 
-    const install = async (): Promise<void> => {
-        setBusy('install');
-        try {
-            if (await run(() => api.installConfigDbUpdate())) {
-                setStatus({ updateAvailable: false });
-            }
-        }
-        finally {
-            setBusy(null);
-        }
-    };
+    return items;
+}
+
+// Anything in flight (or waiting on a decision) shows here, under the panel header
+export function MaintenanceStatus({ state, actions }: { state: MaintenanceState; actions: MaintenanceActions }) {
+    const { rebuild, rebuilding, rebuildSummary, configDb, configBusy, reinterviewing } = state;
+
+    const nothingToShow = !rebuilding
+        && !rebuildSummary
+        && !configDb?.updateAvailable
+        && reinterviewing === 0;
+
+    if (nothingToShow) {
+        return null;
+    }
 
     return (
-        <div className="maint-line">
-            <button onClick={() => void check()} disabled={busy !== null}>
-                {busy === 'check' ? 'Checking…' : 'Check device-DB update'}
-            </button>
-            {status?.updateAvailable && (
-                <button onClick={() => void install()} disabled={busy !== null}>
-                    {busy === 'install' ? 'Installing…' : `Install ${status.version ?? 'update'}`}
-                </button>
+        <div className="maint-status">
+            {rebuilding && (
+                <div className="maint-line">
+                    <span className="spinner" aria-hidden="true" />
+                    <span>
+                        Rebuilding routes
+                        {rebuild ? ` ${rebuild.done + rebuild.failed + rebuild.skipped}/${rebuild.total}` : ''}
+                    </span>
+                </div>
             )}
-            <span className="muted">refreshes named device parameters; re-interview a device after installing</span>
-        </div>
-    );
-}
 
-// Sequentially re-interview the unidentified nodes (spaced out so their interviews
-// don't all start at once and flood a struggling mesh).
-function ReinterviewUnidentified({ devices, run, refresh }: { devices: IDeviceInfo[]; run: RunFn; refresh: () => Promise<void> }) {
-    const [running, setRunning] = useState(false);
+            {rebuildSummary && (
+                <div className="maint-line">
+                    <span>{rebuildSummary}</span>
+                    <button className="link-btn" onClick={actions.dismissRebuildSummary}>Dismiss</button>
+                </div>
+            )}
 
-    const start = async (): Promise<void> => {
-        setRunning(true);
-        try {
-            for (const device of devices) {
-                await run(() => api.refreshDevice(device.nodeId));
-                await new Promise(resolve => setTimeout(resolve, 1500));
-            }
-            await refresh();
-        }
-        finally {
-            setRunning(false);
-        }
-    };
+            {configDb?.updateAvailable && (
+                <div className="maint-line">
+                    <span>Device-database update available ({configDb.version})</span>
+                    <button onClick={actions.installConfigDb} disabled={configBusy !== null}>
+                        {configBusy === 'install' ? 'Installing…' : 'Install'}
+                    </button>
+                    <span className="muted">re-interview a device afterwards to apply it</span>
+                </div>
+            )}
 
-    return (
-        <div className="maint-line">
-            <button onClick={() => void start()} disabled={running}>
-                {running ? 'Re-interviewing…' : `Re-interview ${devices.length} unidentified`}
-            </button>
-            <span className="muted">devices with no manufacturer/model — often a timed-out interview</span>
+            {reinterviewing > 0 && (
+                <div className="maint-line">
+                    <span className="spinner" aria-hidden="true" />
+                    <span>Re-interviewing {reinterviewing} device{reinterviewing === 1 ? '' : 's'}…</span>
+                </div>
+            )}
         </div>
     );
 }

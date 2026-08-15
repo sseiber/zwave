@@ -85,10 +85,16 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - Skipped if no `index.html` is found there, so local dev stays API-only while the
      web client runs from the Vite dev server
    - Touch behavior is centralized in `packages/web/src/press.ts` (installed once from
-     `App`): every button gets an inverted `.is-pressed` state held ~350ms, and taps are
-     activated from `pointerup` with a 30px slop. Controls set `touch-action: none` so a
-     touch starting on a button/slider can't pan the page. Plain `<button>` elements pick
-     all of this up — no per-button wiring.
+     `App`): it adds a **subtle** `.is-pressed` highlight (~140ms minimum) on pointerdown
+     and drops it once the finger travels >10px. It deliberately does **not** drive
+     activation — the browser's click does, so a drag that starts on a button scrolls the
+     page and never fires it. Buttons use `touch-action: manipulation` (sliders `pan-y`).
+     Plain `<button>` elements pick this up — no per-button wiring.
+   - Transient results are toasts (`src/Toast.tsx`), not banners: they rise above the
+     bottom nav, auto-dismiss (3s / 7s for errors) and fade, and take no layout space.
+     A persistent *state* notice (inclusion active) is still an inline `.banner`.
+   - Each panel header carries a kebab `ActionMenu` (`panels/ActionMenu.tsx`) instead of a
+     prominent "New …" button; per-view actions collect there.
    - The **Dashboard is the home view**; Devices / Rooms / Scenes are reached from a
      fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
    - Dashboard cards are roll-ups, deliberately fixed-height rather than per-device
@@ -97,7 +103,9 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      room (tap = all off if any are on, else all on); and a schedule timeline strip with
      recent runs behind a "now" marker and planned runs ahead of it.
    - Mesh maintenance (route rebuild, device-DB update, re-interview unidentified) lives
-     in `panels/Maintenance.tsx`, collapsed above the device list — not on the Dashboard.
+     in `panels/Maintenance.tsx` as a `useMaintenance` hook: the actions hang off the
+     Devices menu, and anything in flight renders in a `MaintenanceStatus` strip under
+     the header. These belong in a dedicated settings view eventually.
    - The Scenes view is activation-first: scenes are grouped under their room label
      (`groupScenesByRoom`; `roomId` is only a label, so unlabelled scenes group last) and
      each tile *is* the Activate button, showing the name plus one meta line. The device
