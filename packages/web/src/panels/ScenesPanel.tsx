@@ -15,11 +15,13 @@ interface ScenesPanelProps {
     run: RunFn;
     refresh: () => Promise<void>;
     refreshStatus: () => Promise<void>;
+    // Activating a scene changes device state, so the device list needs re-reading too
+    refreshDevices: () => Promise<void>;
 }
 
 type Editing = IScene | 'new' | null;
 
-export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, refreshStatus }: ScenesPanelProps) {
+export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, refreshStatus, refreshDevices }: ScenesPanelProps) {
     const [editing, setEditing] = useState<Editing>(null);
 
     const statusById = new Map(statuses.map(s => [s.sceneId, s]));
@@ -28,6 +30,7 @@ export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, re
         await run(() => api.activateScene(scene.id));
         await refresh();
         await refreshStatus();
+        await refreshDevices();
     };
 
     const remove = async (scene: IScene): Promise<void> => {
