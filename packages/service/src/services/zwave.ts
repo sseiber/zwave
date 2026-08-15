@@ -11,7 +11,7 @@ import {
     ISetConfigParamRequest
 } from '../models/index.js';
 import { exMessage } from '../utils/index.js';
-import { ZWaveController } from './zwaveController.js';
+import { INetworkTelemetry, ZWaveController } from './zwaveController.js';
 import { PluginName as ConfigPluginName } from '../plugins/config.js';
 
 export const ServiceName = 'zwaveService';
@@ -55,6 +55,16 @@ class ZWaveService {
 
     public async shutdown(): Promise<void> {
         await this.controller.destroy();
+    }
+
+    // Raw driver telemetry for the health service. Returned unwrapped (no
+    // IServiceResponse envelope) because the caller is another service, not a route.
+    public getNetworkTelemetry(): INetworkTelemetry {
+        return this.controller.getNetworkTelemetry();
+    }
+
+    public async pingNode(nodeId: number): Promise<boolean> {
+        return this.controller.pingNode(nodeId);
     }
 
     //

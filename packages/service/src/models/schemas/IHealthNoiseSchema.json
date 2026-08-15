@@ -1,0 +1,30 @@
+{
+  "$id": "IHealthNoise",
+  "$ref": "#/definitions/IHealthNoise",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IHealthNoise": {
+      "additionalProperties": false,
+      "properties": {
+        "average": {
+          "type": "number"
+        },
+        "channels": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "current": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "current",
+        "average",
+        "channels"
+      ],
+      "type": "object"
+    }
+  }
+}

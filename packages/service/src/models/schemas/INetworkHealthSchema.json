@@ -1,0 +1,201 @@
+{
+  "$id": "INetworkHealth",
+  "$ref": "#/definitions/INetworkHealth",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "HealthState": {
+      "enum": [
+        "good",
+        "fair",
+        "poor"
+      ],
+      "type": "string"
+    },
+    "IHealthFactor": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "impact": {
+          "type": "number"
+        },
+        "label": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "label",
+        "impact"
+      ],
+      "type": "object"
+    },
+    "IHealthNoise": {
+      "additionalProperties": false,
+      "properties": {
+        "average": {
+          "type": "number"
+        },
+        "channels": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        },
+        "current": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "current",
+        "average",
+        "channels"
+      ],
+      "type": "object"
+    },
+    "IHealthTraffic": {
+      "additionalProperties": false,
+      "properties": {
+        "errorRate": {
+          "type": "number"
+        },
+        "messagesPerMinute": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "messagesPerMinute",
+        "errorRate"
+      ],
+      "type": "object"
+    },
+    "INetworkHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "devices": {
+          "additionalProperties": false,
+          "properties": {
+            "offline": {
+              "type": "number"
+            },
+            "responding": {
+              "type": "number"
+            },
+            "total": {
+              "type": "number"
+            },
+            "unmeasured": {
+              "type": "number"
+            }
+          },
+          "required": [
+            "total",
+            "responding",
+            "offline",
+            "unmeasured"
+          ],
+          "type": "object"
+        },
+        "factors": {
+          "items": {
+            "$ref": "#/definitions/IHealthFactor"
+          },
+          "type": "array"
+        },
+        "headline": {
+          "type": "string"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/definitions/INodeHealth"
+          },
+          "type": "array"
+        },
+        "noise": {
+          "$ref": "#/definitions/IHealthNoise"
+        },
+        "sampledAt": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number"
+        },
+        "state": {
+          "$ref": "#/definitions/HealthState"
+        },
+        "traffic": {
+          "$ref": "#/definitions/IHealthTraffic"
+        },
+        "trend": {
+          "items": {
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "score",
+        "state",
+        "headline",
+        "factors",
+        "trend",
+        "sampledAt",
+        "devices",
+        "traffic",
+        "nodes"
+      ],
+      "type": "object"
+    },
+    "INodeHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "dataRate": {
+          "type": "number"
+        },
+        "dropRate": {
+          "type": "number"
+        },
+        "hops": {
+          "type": "number"
+        },
+        "lastSeen": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "number"
+        },
+        "rssi": {
+          "type": "number"
+        },
+        "rtt": {
+          "type": "number"
+        },
+        "state": {
+          "$ref": "#/definitions/NodeHealthState"
+        }
+      },
+      "required": [
+        "nodeId",
+        "name",
+        "state"
+      ],
+      "type": "object"
+    },
+    "NodeHealthState": {
+      "enum": [
+        "good",
+        "fair",
+        "poor",
+        "offline",
+        "unknown"
+      ],
+      "type": "string"
+    }
+  }
+}

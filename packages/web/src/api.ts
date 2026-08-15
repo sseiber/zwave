@@ -8,6 +8,7 @@ import type {
     IRebuildRoutesStatus,
     IConfigDbStatus,
     IInclusionRequest,
+    INetworkHealth,
     IRoom,
     ICreateRoomRequest,
     IUpdateRoomRequest,
@@ -96,6 +97,11 @@ export const api = {
 
     rebuildAllRoutes(): Promise<IServiceResponse> {
         return post('/rebuild-routes');
+    },
+
+    async getNetworkHealth(): Promise<INetworkHealth> {
+        const res = await request<INetworkHealth>('/network/health');
+        return res.data as INetworkHealth;
     },
 
     async getRebuildRoutesStatus(): Promise<IRebuildRoutesStatus> {

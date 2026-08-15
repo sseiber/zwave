@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
-import { DeviceAction, DeviceStatus } from '@zwave-service/contracts';
+import { useEffect, useState } from 'react';
+import type { IDeviceInfo, INetworkHealth, INodeHealth, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
+import { DeviceAction, DeviceStatus, HealthState, NodeHealthState } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 import { describeSchedule } from '../schedule.ts';
-import { relativeTime, relativeUpcoming, absoluteTime, clockTime, signal, round } from '../format.ts';
+import { relativeTime, relativeUpcoming, absoluteTime, clockTime, round } from '../format.ts';
 
 interface DashboardPanelProps {
     devices: IDeviceInfo[];
@@ -37,7 +37,7 @@ export function DashboardPanel({ devices, rooms, scenes, statuses, run, refresh,
                     totalWatts={hasPower ? totalWatts : undefined}
                     onNavigate={onNavigate}
                 />
-                <MeshCard devices={devices} onNavigate={onNavigate} />
+                <HealthCard onNavigate={onNavigate} />
                 <RoomsCard rooms={rooms} devices={devices} run={run} refresh={refresh} onNavigate={onNavigate} />
                 <ScheduleCard scenes={scenes} statuses={statuses} devices={devices} onNavigate={onNavigate} />
             </div>
@@ -84,125 +84,212 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'on
 }
 
 //
-// Mesh health
+// Network health
 //
-// Every device is represented, but as a dot rather than a row — a 24-node mesh reads
-// as two rows of dots instead of 24 lines. Only the nodes worth acting on are spelled
-// out underneath; healthy ones stay a count.
+// One composite verdict rather than a wall of readings: the service folds controller
+// traffic, per-device reliability, latency, signal and the RF noise floor into a score
+// and a plain sentence, and this shows that — with the score's recent movement, the
+// reasons behind it, and a dot per device so the whole mesh is still visible at once.
 //
 
-type MeshTone = 'good' | 'warn' | 'bad' | 'unknown';
+// Health is sampled service-side every 30s; polling faster only re-fetches the same
+// verdict, and the background sweep keeps device readings moving underneath it.
+const HealthPollMs = 15000;
 
-function meshTone(device: IDeviceInfo): MeshTone {
-    if (isOffline(device)) {
-        return 'bad';
+function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
+    const [health, setHealth] = useState<INetworkHealth | null>(null);
+    const [failed, setFailed] = useState(false);
+
+    useEffect(() => {
+        let alive = true;
+
+        const read = async (): Promise<void> => {
+            try {
+                const next = await api.getNetworkHealth();
+
+                if (alive) {
+                    setHealth(next);
+                    setFailed(false);
+                }
+            }
+            catch {
+                if (alive) {
+                    setFailed(true);
+                }
+            }
+        };
+
+        void read();
+
+        const id = setInterval(() => void read(), HealthPollMs);
+
+        return () => { alive = false; clearInterval(id); };
+    }, []);
+
+    if (!health) {
+        return (
+            <div className="card dash-card">
+                <div className="dash-card-head"><h3>Health</h3></div>
+                <p className="muted">{failed ? 'Health readings are unavailable.' : 'Taking the first reading…'}</p>
+            </div>
+        );
     }
-    if (device.link?.rssi === undefined) {
-        return 'unknown';
-    }
 
-    return signal(device.link.rssi).level >= 2 ? 'good' : 'warn';
-}
-
-function meshLabel(device: IDeviceInfo): string {
-    if (isOffline(device)) {
-        return 'Offline';
-    }
-    if (device.link?.rssi === undefined) {
-        return 'No reading';
-    }
-
-    return signal(device.link.rssi).label;
-}
-
-function deviceName(device: IDeviceInfo): string {
-    return device.name || `Node ${device.nodeId}`;
-}
-
-// Weakest / most-troubled nodes first: dead before alive, then by ascending RSSI
-// (missing RSSI sorts last).
-function meshRank(device: IDeviceInfo): [number, number] {
-    return [isOffline(device) ? 0 : 1, device.link?.rssi ?? Infinity];
-}
-
-// How many flagged nodes to name before collapsing the rest into a count
-const MaxFlagged = 3;
-
-interface MeshCardProps {
-    devices: IDeviceInfo[];
-    onNavigate: (tab: 'devices') => void;
-}
-
-function MeshCard({ devices, onNavigate }: MeshCardProps) {
-    const sorted = [...devices].sort((a, b) => {
-        const [ad, ar] = meshRank(a);
-        const [bd, br] = meshRank(b);
-        return ad - bd || ar - br;
-    });
-
-    const tones = sorted.map(meshTone);
-    const count = (tone: MeshTone): number => tones.filter(t => t === tone).length;
-
-    // Offline and weak nodes are the ones a person can actually act on; "no reading"
-    // is normal for a node that simply hasn't been talked to yet.
-    const flagged = sorted.filter(d => meshTone(d) === 'bad' || meshTone(d) === 'warn');
-
-    const summary = [
-        count('good') > 0 ? `${count('good')} strong` : undefined,
-        count('warn') > 0 ? `${count('warn')} weak` : undefined,
-        count('bad') > 0 ? `${count('bad')} offline` : undefined,
-        count('unknown') > 0 ? `${count('unknown')} no reading` : undefined
-    ].filter(Boolean).join(' · ');
+    const tone = health.state === HealthState.Good ? 'good' : health.state === HealthState.Fair ? 'warn' : 'bad';
 
     return (
-        <div className="card dash-card">
+        <div className={`card dash-card health ${tone}`}>
             <div className="dash-card-head">
-                <h3>Mesh health</h3>
-                {flagged.length > 0
-                    ? <span className="pill dead">{flagged.length} to watch</span>
-                    : devices.length > 0 && <span className="pill ok">all healthy</span>}
+                <h3>Health</h3>
+                <span className="muted health-sampled" title={absoluteTime(health.sampledAt)}>
+                    {relativeTime(health.sampledAt)}
+                </span>
             </div>
 
-            {devices.length === 0
-                ? <p className="muted">No devices to report on yet.</p>
-                : (
-                    <>
-                        <div className="mesh-dots" role="img" aria-label={`Mesh health: ${summary}`}>
-                            {sorted.map((device, index) => (
-                                <span
-                                    key={device.nodeId}
-                                    className={`mesh-dot ${tones[index]}`}
-                                    title={`${deviceName(device)} — ${meshLabel(device)}`}
-                                />
-                            ))}
-                        </div>
+            <div className="health-top">
+                <div className="health-score">
+                    <span className="health-score-value">{health.score}</span>
+                    <span className="health-score-label">{stateLabel(health.state)}</span>
+                </div>
+                <Trend values={health.trend} tone={tone} />
+            </div>
 
-                        <p className="mesh-summary muted">{summary}</p>
+            <p className="health-headline">{health.headline}</p>
 
-                        {flagged.length > 0 && (
-                            <ul className="mesh-flags">
-                                {flagged.slice(0, MaxFlagged).map(device => (
-                                    <li key={device.nodeId} className="mesh-flag">
-                                        <span className={`mesh-dot ${meshTone(device)}`} aria-hidden="true" />
-                                        <span className="mesh-flag-name">{deviceName(device)}</span>
-                                        <span className="mesh-flag-state">{meshLabel(device)}</span>
-                                        <span className="mesh-flag-seen muted" title={absoluteTime(device.link?.lastSeen)}>
-                                            {relativeTime(device.link?.lastSeen)}
-                                        </span>
-                                    </li>
-                                ))}
-                                {flagged.length > MaxFlagged && (
-                                    <li className="mesh-flag more muted">
-                                        +{flagged.length - MaxFlagged} more —{' '}
-                                        <button className="link-btn" onClick={() => onNavigate('devices')}>see all devices</button>
-                                    </li>
-                                )}
-                            </ul>
-                        )}
-                    </>
-                )}
+            {health.factors.length > 0 && (
+                <ul className="health-factors">
+                    {health.factors.slice(0, 3).map(factor => (
+                        <li key={factor.label}>
+                            <span className="health-factor-label">{factor.label}</span>
+                            {factor.detail && <span className="muted health-factor-detail">{factor.detail}</span>}
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            {health.nodes.length > 0 && (
+                <div className="mesh-dots" role="img" aria-label={`${health.devices.responding} of ${health.devices.total} devices responding`}>
+                    {[...health.nodes]
+                        .sort((a, b) => nodeRank(a.state) - nodeRank(b.state))
+                        .map(node => (
+                            <span
+                                key={node.nodeId}
+                                className={`mesh-dot ${nodeTone(node.state)}`}
+                                title={`${node.name} — ${nodeSummary(node)}`}
+                            />
+                        ))}
+                </div>
+            )}
+
+            <p className="health-stats muted">
+                {health.devices.responding}/{health.devices.total} responding
+                {health.devices.unmeasured > 0 && ` · ${health.devices.unmeasured} unmeasured`}
+                {` · ${health.traffic.messagesPerMinute}/min`}
+                {health.traffic.errorRate > 0 && ` · ${Math.round(health.traffic.errorRate * 100)}% errors`}
+                {health.noise && ` · noise ${health.noise.current} dBm`}
+                {' · '}
+                <button className="link-btn" onClick={() => onNavigate('devices')}>Devices →</button>
+            </p>
         </div>
     );
+}
+
+// The score's recent movement as a sparkline. Flat is the healthy case, so the shape
+// only draws attention once something actually changes.
+function Trend({ values, tone }: { values: number[]; tone: string }) {
+    if (values.length < 2) {
+        return null;
+    }
+
+    const width = 100;
+    const height = 28;
+
+    // Anchor the scale to a fixed band, so a mesh sitting at 100 draws a flat line at
+    // the top rather than having its noise amplified to fill the box
+    const min = Math.min(50, ...values);
+    const span = Math.max(1, 100 - min);
+
+    const points = values.map((value, index) => {
+        const x = (index / (values.length - 1)) * width;
+        const y = height - ((value - min) / span) * height;
+
+        return `${round2(x)},${round2(y)}`;
+    });
+
+    return (
+        <svg className={`trend ${tone}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+            <polyline points={points.join(' ')} />
+        </svg>
+    );
+}
+
+function round2(value: number): number {
+    return Math.round(value * 100) / 100;
+}
+
+function stateLabel(state: HealthState): string {
+    switch (state) {
+        case HealthState.Good:
+            return 'healthy';
+        case HealthState.Fair:
+            return 'needs a look';
+        default:
+            return 'degraded';
+    }
+}
+
+function nodeTone(state: NodeHealthState): string {
+    switch (state) {
+        case NodeHealthState.Good:
+            return 'good';
+        case NodeHealthState.Fair:
+        case NodeHealthState.Poor:
+            return 'warn';
+        case NodeHealthState.Offline:
+            return 'bad';
+        default:
+            return 'unknown';
+    }
+}
+
+// Worst first, so the dot grid reads left-to-right as problems then healthy devices
+function nodeRank(state: NodeHealthState): number {
+    switch (state) {
+        case NodeHealthState.Offline:
+            return 0;
+        case NodeHealthState.Poor:
+            return 1;
+        case NodeHealthState.Fair:
+            return 2;
+        case NodeHealthState.Good:
+            return 3;
+        default:
+            return 4;
+    }
+}
+
+// Tooltip for a device dot: whatever has actually been measured about it
+function nodeSummary(node: INodeHealth): string {
+    if (node.state === NodeHealthState.Offline) {
+        return 'offline';
+    }
+
+    const parts: string[] = [];
+
+    if (node.rssi !== undefined) {
+        parts.push(`${node.rssi} dBm`);
+    }
+    if (node.rtt !== undefined) {
+        parts.push(`${node.rtt} ms`);
+    }
+    if (node.dropRate !== undefined && node.dropRate > 0) {
+        parts.push(`${Math.round(node.dropRate * 100)}% failed`);
+    }
+    if (node.hops !== undefined) {
+        parts.push(node.hops === 0 ? 'direct' : `${node.hops} hop${node.hops === 1 ? '' : 's'}`);
+    }
+
+    return parts.length > 0 ? parts.join(' · ') : 'not measured yet';
 }
 
 //
