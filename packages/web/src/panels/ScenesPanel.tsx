@@ -23,14 +23,32 @@ type Editing = IScene | 'new' | null;
 
 export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, refreshStatus, refreshDevices }: ScenesPanelProps) {
     const [editing, setEditing] = useState<Editing>(null);
+    // Which scene has its details expanded (at most one, so the list stays scannable)
+    const [openId, setOpenId] = useState<string | null>(null);
+    // Per-scene activation feedback: the tile says "Activating…" then "Activated"
+    const [busyId, setBusyId] = useState<string | null>(null);
+    const [ranId, setRanId] = useState<string | null>(null);
 
     const statusById = new Map(statuses.map(s => [s.sceneId, s]));
 
     const activate = async (scene: IScene): Promise<void> => {
-        await run(() => api.activateScene(scene.id));
-        await refresh();
-        await refreshStatus();
-        await refreshDevices();
+        setBusyId(scene.id);
+
+        try {
+            const ok = await run(() => api.activateScene(scene.id));
+
+            await refresh();
+            await refreshStatus();
+            await refreshDevices();
+
+            if (ok) {
+                setRanId(scene.id);
+                window.setTimeout(() => setRanId(current => (current === scene.id ? null : current)), ActivatedFlashMs);
+            }
+        }
+        finally {
+            setBusyId(current => (current === scene.id ? null : current));
+        }
     };
 
     const remove = async (scene: IScene): Promise<void> => {
@@ -52,6 +70,8 @@ export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, re
             await refresh();
         }
     };
+
+    const groups = groupScenesByRoom(scenes, rooms);
 
     return (
         <section>
@@ -82,43 +102,153 @@ export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, re
 
             {scenes.length === 0 && !editing && devices.length > 0
                 ? <p className="muted">No scenes yet. Create one to set several devices at once — across any rooms.</p>
-                : (
-                    <ul className="cards">
-                        {scenes.map(scene => (
-                            <li key={scene.id} className="card">
-                                <div className="card-head">
-                                    <span className="name">{scene.name}</span>
-                                    {scene.schedules?.length
-                                        ? <span className="pill scheduled">{scene.schedules.length} schedule{scene.schedules.length === 1 ? '' : 's'}</span>
-                                        : <span className="pill manual">manual</span>}
-                                </div>
-                                <div className="meta">
-                                    {scene.roomId && <span>{roomName(rooms, scene.roomId)}</span>}
-                                    <span>{scene.devices.length} device{scene.devices.length === 1 ? '' : 's'}</span>
-                                    {scene.schedules?.map((s, i) => (
-                                        <span key={i} className="sched">{describeSchedule(s)}</span>
-                                    ))}
-                                </div>
-                                <SceneRunTimes scene={scene} status={statusById.get(scene.id)} />
-                                <ul className="scene-actions">
-                                    {scene.devices.map(d => (
-                                        <li key={d.deviceId}>
-                                            {deviceName(devices, d.deviceId)} → <strong>{describeAction(d)}</strong>
-                                        </li>
-                                    ))}
-                                </ul>
-                                <div className="controls">
-                                    <button className="primary" onClick={() => void activate(scene)}>Activate</button>
-                                    <span className="spacer" />
-                                    <button onClick={() => setEditing(scene)}>Edit</button>
-                                    <button className="danger" onClick={() => void remove(scene)}>Delete</button>
-                                </div>
+                : groups.map(group => (
+                    <div key={group.key} className="scene-group">
+                        <h3 className="scene-group-head">{group.label}</h3>
+                        <ul className="scene-tiles">
+                            {group.scenes.map(scene => (
+                                <SceneTile
+                                    key={scene.id}
+                                    scene={scene}
+                                    status={statusById.get(scene.id)}
+                                    devices={devices}
+                                    busy={busyId === scene.id}
+                                    justRan={ranId === scene.id}
+                                    open={openId === scene.id}
+                                    onActivate={() => void activate(scene)}
+                                    onToggleDetails={() => setOpenId(current => (current === scene.id ? null : scene.id))}
+                                    onEdit={() => setEditing(scene)}
+                                    onDelete={() => void remove(scene)}
+                                />
+                            ))}
+                        </ul>
+                    </div>
+                ))}
+        </section>
+    );
+}
+
+// How long a tile shows "Activated" after a successful run
+const ActivatedFlashMs = 2500;
+
+interface SceneGroup {
+    key: string;
+    label: string;
+    scenes: IScene[];
+}
+
+// Group scenes under their room label, in the room list's own order, with anything
+// unlabelled (a catch-all like "House off") collected at the end. `roomId` is only a
+// label — it does not constrain which devices a scene controls.
+export function groupScenesByRoom(scenes: IScene[], rooms: IRoom[]): SceneGroup[] {
+    const groups: SceneGroup[] = [];
+    const placed = new Set<string>();
+
+    for (const room of rooms) {
+        const members = scenes.filter(scene => scene.roomId === room.id);
+
+        members.forEach(scene => placed.add(scene.id));
+
+        if (members.length > 0) {
+            groups.push({ key: room.id, label: room.name, scenes: members });
+        }
+    }
+
+    const rest = scenes.filter(scene => !placed.has(scene.id));
+    if (rest.length > 0) {
+        groups.push({ key: '__unassigned__', label: rooms.length > 0 ? 'No room' : 'All scenes', scenes: rest });
+    }
+
+    return groups;
+}
+
+interface SceneTileProps {
+    scene: IScene;
+    status: ISceneStatus | undefined;
+    devices: IDeviceInfo[];
+    busy: boolean;
+    justRan: boolean;
+    open: boolean;
+    onActivate: () => void;
+    onToggleDetails: () => void;
+    onEdit: () => void;
+    onDelete: () => void;
+}
+
+// The tile itself is the Activate button — the name is the target, and everything
+// else (device list, schedules, edit/delete) hides behind the details toggle.
+function SceneTile({ scene, status, devices, busy, justRan, open, onActivate, onToggleDetails, onEdit, onDelete }: SceneTileProps) {
+    const meta = busy
+        ? 'Activating…'
+        : justRan
+            ? 'Activated'
+            : tileMeta(scene, status);
+
+    return (
+        <li className={`scene-tile-wrap${open ? ' open' : ''}`}>
+            <div className="scene-tile">
+                <button
+                    className={`scene-run${justRan ? ' ran' : ''}`}
+                    onClick={onActivate}
+                    disabled={busy}
+                    title={`Activate ${scene.name}`}
+                >
+                    <span className="scene-run-name">{scene.name}</span>
+                    <span className="scene-run-meta">{meta}</span>
+                </button>
+
+                <button
+                    className="scene-details-toggle"
+                    onClick={onToggleDetails}
+                    aria-expanded={open}
+                    aria-label={`${open ? 'Hide' : 'Show'} details for ${scene.name}`}
+                    title="Details"
+                >
+                    <span className={`chevron${open ? ' open' : ''}`} aria-hidden="true" />
+                </button>
+            </div>
+
+            {open && (
+                <div className="scene-details">
+                    <SceneRunTimes scene={scene} status={status} />
+
+                    {(scene.schedules?.length ?? 0) > 0 && (
+                        <p className="muted scene-details-rules">
+                            {scene.schedules?.map(describeSchedule).join(' · ')}
+                        </p>
+                    )}
+
+                    <ul className="scene-actions">
+                        {scene.devices.map(d => (
+                            <li key={d.deviceId}>
+                                {deviceName(devices, d.deviceId)} → <strong>{describeAction(d)}</strong>
                             </li>
                         ))}
                     </ul>
-                )}
-        </section>
+
+                    <div className="controls">
+                        <button onClick={onEdit}>Edit</button>
+                        <button className="danger" onClick={onDelete}>Delete</button>
+                    </div>
+                </div>
+            )}
+        </li>
     );
+}
+
+// The one line under a scene name: how many devices it sets, and its next run if it
+// has one. Deliberately short — the full picture is behind the details toggle.
+function tileMeta(scene: IScene, status: ISceneStatus | undefined): string {
+    const parts = [`${scene.devices.length} device${scene.devices.length === 1 ? '' : 's'}`];
+
+    if (status?.nextRun) {
+        parts.push(`next ${relativeUpcoming(status.nextRun)}`);
+    }
+    else if ((scene.schedules?.length ?? 0) > 0) {
+        parts.push('not scheduled');
+    }
+
+    return parts.join(' · ');
 }
 
 function SceneRunTimes({ scene, status }: { scene: IScene; status: ISceneStatus | undefined }) {
@@ -152,10 +282,6 @@ function SceneRunTimes({ scene, status }: { scene: IScene; status: ISceneStatus 
 
 function describeAction(device: ISceneDevice): string {
     return device.action === DeviceAction.Dim ? `dim ${device.level ?? 0}%` : device.action;
-}
-
-function roomName(rooms: IRoom[], roomId: string): string {
-    return rooms.find(r => r.id === roomId)?.name ?? 'Unknown room';
 }
 
 function deviceName(devices: IDeviceInfo[], nodeId: number): string {
