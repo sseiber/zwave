@@ -658,3 +658,88 @@ button:disabled:hover { border-color: var(--border); }
     color: var(--muted);
 }
 .run-detail-devices strong { color: var(--text); font-weight: 600; }
+
+/* Scenes — name-first tiles grouped by room, details behind a toggle */
+.scene-group + .scene-group { margin-top: 1rem; }
+.scene-group-head {
+    margin: 0 0 0.4rem;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.2rem;
+}
+.scene-tiles {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 0.5rem;
+}
+.scene-tile {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    overflow: hidden;
+}
+.scene-tile-wrap.open .scene-tile { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+/* The tile body is the activate button: big target, name first */
+.scene-run {
+    flex: 1;
+    min-width: 0;
+    min-height: 3.4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.15rem;
+    padding: 0.55rem 0.7rem;
+    border: none;
+    border-radius: 0;
+    text-align: left;
+}
+.scene-run-name {
+    font-weight: 600;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.scene-run-meta { font-size: 0.76rem; color: var(--muted); }
+.scene-run:active .scene-run-meta,
+.scene-run.is-pressed .scene-run-meta { color: inherit; }
+.scene-run.ran .scene-run-meta { color: var(--on); font-weight: 600; }
+.scene-details-toggle {
+    width: 2.9rem;
+    flex: none;
+    border: none;
+    border-left: 1px solid var(--border);
+    border-radius: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+}
+/* Chevron drawn from a rotated square corner, so no icon asset is needed */
+.chevron {
+    width: 0.5rem;
+    height: 0.5rem;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg) translate(-0.1rem, -0.1rem);
+    transition: transform 120ms ease-out;
+}
+.chevron.open { transform: rotate(45deg) translate(-0.05rem, -0.05rem); }
+.scene-details {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 10px 10px;
+    background: var(--card);
+    padding: 0.55rem 0.7rem 0.6rem;
+}
+.scene-details .scene-actions { padding-top: 0.35rem; }
+.scene-details-rules { font-size: 0.8rem; margin: 0.2rem 0 0; color: var(--accent); }

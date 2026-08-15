@@ -98,6 +98,10 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      recent runs behind a "now" marker and planned runs ahead of it.
    - Mesh maintenance (route rebuild, device-DB update, re-interview unidentified) lives
      in `panels/Maintenance.tsx`, collapsed above the device list — not on the Dashboard.
+   - The Scenes view is activation-first: scenes are grouped under their room label
+     (`groupScenesByRoom`; `roomId` is only a label, so unlabelled scenes group last) and
+     each tile *is* the Activate button, showing the name plus one meta line. The device
+     list, schedule rules, run times and Edit/Delete sit behind a per-tile details toggle.
 
 8. **JSON body parser** (`plugins/jsonBodyParser.ts`, named export)
    - Replaces Fastify's default JSON parser so an empty body with
