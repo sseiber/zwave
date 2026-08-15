@@ -9,11 +9,13 @@ interface RoomsPanelProps {
     devices: IDeviceInfo[];
     run: RunFn;
     refresh: () => Promise<void>;
+    // Room control changes device state, so the device list needs re-reading too
+    refreshDevices: () => Promise<void>;
 }
 
 type Editing = IRoom | 'new' | null;
 
-export function RoomsPanel({ rooms, devices, run, refresh }: RoomsPanelProps) {
+export function RoomsPanel({ rooms, devices, run, refresh, refreshDevices }: RoomsPanelProps) {
     const [editing, setEditing] = useState<Editing>(null);
 
     const remove = async (room: IRoom): Promise<void> => {
@@ -27,6 +29,9 @@ export function RoomsPanel({ rooms, devices, run, refresh }: RoomsPanelProps) {
 
     const control = async (room: IRoom, action: DeviceAction): Promise<void> => {
         await run(() => api.controlRoom(room.id, { action }));
+
+        // Reflect the new on/off state (the dashboard's counts read the same list)
+        await refreshDevices();
     };
 
     const save = async (name: string, deviceIds: number[]): Promise<void> => {

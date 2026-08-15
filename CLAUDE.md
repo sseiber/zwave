@@ -41,7 +41,12 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
 2. **Z-Wave Controller** (`services/zwaveController.ts`)
    - Plain class wrapping the `zwave-js` `Driver`
    - Loads or generates S2/S0 (and Long Range) security keys from `${zwaveStorage}/securityKeys.json`
-   - Owns inclusion/exclusion, device discovery, and Binary/Multilevel Switch control
+   - Owns inclusion/exclusion, device discovery, and Binary/Multilevel Switch control.
+     Switch commands go through `node.setValue` on `targetValue` (**not** the CC API's
+     `set()`): setValue runs zwave-js's value hooks, which optimistically update the
+     cached `currentValue` and schedule a verification poll. `describeNode` reads that
+     cache, so the CC API left `GET /devices` reporting stale on/off state for devices
+     that don't send unsolicited reports.
    - Maps device REST levels (0-100) to Z-Wave Multilevel Switch levels (0-99)
    - Also: device rename (`node.name`), rich state (Meter/statistics/etc. in
      `describeNode`), lifeline health check, Configuration CC read/write

@@ -156,7 +156,6 @@ export function App() {
         <div className="app">
             <header>
                 <h1>Z-Wave Control</h1>
-                <button onClick={() => { void refreshDevices(); void refreshRooms(); void refreshScenes(); void refreshSceneStatus(); }}>Refresh</button>
             </header>
 
             {error && <div className="banner error" onClick={() => setError(null)}>{error}</div>}
@@ -169,8 +168,8 @@ export function App() {
                     : tab === 'devices'
                         ? <DevicesPanel devices={devices} run={run} refresh={refreshDevices} />
                         : tab === 'rooms'
-                            ? <RoomsPanel rooms={rooms} devices={devices} run={run} refresh={refreshRooms} />
-                            : <ScenesPanel scenes={scenes} statuses={sceneStatus} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} refreshStatus={refreshSceneStatus} />}
+                            ? <RoomsPanel rooms={rooms} devices={devices} run={run} refresh={refreshRooms} refreshDevices={refreshDevices} />
+                            : <ScenesPanel scenes={scenes} statuses={sceneStatus} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} refreshStatus={refreshSceneStatus} refreshDevices={refreshDevices} />}
 
             <nav className="bottom-nav">
                 {TABS.map(t => (

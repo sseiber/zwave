@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import { DeviceAction, DeviceStatus } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
+import { describeSchedule } from '../schedule.ts';
 import { relativeTime, relativeUpcoming, absoluteTime, clockTime, signal, round } from '../format.ts';
 
 interface DashboardPanelProps {
@@ -37,7 +39,7 @@ export function DashboardPanel({ devices, rooms, scenes, statuses, run, refresh,
                 />
                 <MeshCard devices={devices} onNavigate={onNavigate} />
                 <RoomsCard rooms={rooms} devices={devices} run={run} refresh={refresh} onNavigate={onNavigate} />
-                <ScheduleCard scenes={scenes} statuses={statuses} onNavigate={onNavigate} />
+                <ScheduleCard scenes={scenes} statuses={statuses} devices={devices} onNavigate={onNavigate} />
             </div>
         </section>
     );
@@ -277,19 +279,25 @@ const MinWindowMs = 60 * 60 * 1000;
 
 interface PlottedRun {
     key: string;
+    sceneId: string;
     name: string;
     at: number;
     upcoming: boolean;
     failed: boolean;
+    // Result message from the last activation (present on past runs)
+    message?: string;
 }
 
 interface ScheduleCardProps {
     scenes: IScene[];
     statuses: ISceneStatus[];
+    devices: IDeviceInfo[];
     onNavigate: (tab: 'scenes') => void;
 }
 
-function ScheduleCard({ scenes, statuses, onNavigate }: ScheduleCardProps) {
+function ScheduleCard({ scenes, statuses, devices, onNavigate }: ScheduleCardProps) {
+    // Which dot the user tapped, if any — tapping it again clears the detail
+    const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const nameById = new Map(scenes.map(s => [s.id, s.name]));
     const named = (id: string): string => nameById.get(id) ?? 'Unknown scene';
 
@@ -299,10 +307,12 @@ function ScheduleCard({ scenes, statuses, onNavigate }: ScheduleCardProps) {
         .filter(s => s.lastRun)
         .map(s => ({
             key: `p${s.sceneId}`,
+            sceneId: s.sceneId,
             name: named(s.sceneId),
             at: new Date(s.lastRun as string).getTime(),
             upcoming: false,
-            failed: s.lastResult ? !s.lastResult.succeeded : false
+            failed: s.lastResult ? !s.lastResult.succeeded : false,
+            message: s.lastResult?.message
         }))
         .filter(r => Number.isFinite(r.at))
         .sort((a, b) => b.at - a.at)
@@ -312,6 +322,7 @@ function ScheduleCard({ scenes, statuses, onNavigate }: ScheduleCardProps) {
         .filter(s => s.nextRun)
         .map(s => ({
             key: `n${s.sceneId}`,
+            sceneId: s.sceneId,
             name: named(s.sceneId),
             at: new Date(s.nextRun as string).getTime(),
             upcoming: true,
@@ -335,6 +346,7 @@ function ScheduleCard({ scenes, statuses, onNavigate }: ScheduleCardProps) {
 
     const lastRun = past[0];
     const nextRun = future[0];
+    const selected = runs.find(r => r.key === selectedKey);
 
     return (
         <div className="card dash-card">
@@ -350,12 +362,16 @@ function ScheduleCard({ scenes, statuses, onNavigate }: ScheduleCardProps) {
                         <div className="timeline">
                             <div className="timeline-track" />
                             {runs.map(run => (
-                                <span
+                                <button
                                     key={run.key}
-                                    className={`timeline-dot${run.upcoming ? ' next' : ' past'}${run.failed ? ' failed' : ''}`}
+                                    className={`timeline-hit${selectedKey === run.key ? ' selected' : ''}`}
                                     style={{ left: `${position(run.at)}%` }}
-                                    title={`${run.name} — ${run.upcoming ? relativeUpcoming(new Date(run.at).toISOString()) : relativeTime(new Date(run.at).toISOString())}`}
-                                />
+                                    aria-label={`${run.name} — ${runWhen(run)}`}
+                                    title={`${run.name} — ${runWhen(run)}`}
+                                    onClick={() => setSelectedKey(current => (current === run.key ? null : run.key))}
+                                >
+                                    <span className={`timeline-dot${run.upcoming ? ' next' : ' past'}${run.failed ? ' failed' : ''}`} />
+                                </button>
                             ))}
                             <span className="timeline-now" style={{ left: '50%' }} aria-hidden="true" />
                             <div className="timeline-scale">
@@ -365,31 +381,94 @@ function ScheduleCard({ scenes, statuses, onNavigate }: ScheduleCardProps) {
                             </div>
                         </div>
 
-                        <dl className="sched-lines">
-                            {nextRun && (
-                                <div className="sched-line">
-                                    <dt className="k">Next</dt>
-                                    <dd className="v">{nextRun.name}</dd>
-                                    <dd className="t" title={absoluteTime(new Date(nextRun.at).toISOString())}>
-                                        {relativeUpcoming(new Date(nextRun.at).toISOString())}
-                                    </dd>
-                                </div>
+                        {/* The summary lines give way to the details of a tapped dot */}
+                        {selected
+                            ? (
+                                <RunDetail
+                                    run={selected}
+                                    scene={scenes.find(sc => sc.id === selected.sceneId)}
+                                    devices={devices}
+                                    onClose={() => setSelectedKey(null)}
+                                />
+                            )
+                            : (
+                                <dl className="sched-lines">
+                                    {nextRun && (
+                                        <div className="sched-line">
+                                            <dt className="k">Next</dt>
+                                            <dd className="v">{nextRun.name}</dd>
+                                            <dd className="t" title={absoluteTime(new Date(nextRun.at).toISOString())}>
+                                                {relativeUpcoming(new Date(nextRun.at).toISOString())}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {lastRun && (
+                                        <div className="sched-line">
+                                            <dt className="k">Last</dt>
+                                            <dd className="v">
+                                                {lastRun.name}
+                                                {lastRun.failed && <span className="run-failed"> · failed</span>}
+                                            </dd>
+                                            <dd className="t" title={absoluteTime(new Date(lastRun.at).toISOString())}>
+                                                {relativeTime(new Date(lastRun.at).toISOString())}
+                                            </dd>
+                                        </div>
+                                    )}
+                                </dl>
                             )}
-                            {lastRun && (
-                                <div className="sched-line">
-                                    <dt className="k">Last</dt>
-                                    <dd className="v">
-                                        {lastRun.name}
-                                        {lastRun.failed && <span className="run-failed"> · failed</span>}
-                                    </dd>
-                                    <dd className="t" title={absoluteTime(new Date(lastRun.at).toISOString())}>
-                                        {relativeTime(new Date(lastRun.at).toISOString())}
-                                    </dd>
-                                </div>
-                            )}
-                        </dl>
                     </>
                 )}
+        </div>
+    );
+}
+
+// When a run happened / will happen, phrased for its direction
+function runWhen(run: PlottedRun): string {
+    const iso = new Date(run.at).toISOString();
+
+    return run.upcoming ? relativeUpcoming(iso) : relativeTime(iso);
+}
+
+// Details for the dot the user tapped: when it ran (or will run), how it went, what
+// rule triggers it, and which devices it sets.
+function RunDetail({ run, scene, devices, onClose }: { run: PlottedRun; scene: IScene | undefined; devices: IDeviceInfo[]; onClose: () => void }) {
+    const iso = new Date(run.at).toISOString();
+    const named = (nodeId: number): string => {
+        const device = devices.find(d => d.nodeId === nodeId);
+
+        return device ? (device.name || `Node ${device.nodeId}`) : `Node ${nodeId}`;
+    };
+
+    return (
+        <div className="run-detail">
+            <div className="run-detail-head">
+                <span className="name">{run.name}</span>
+                <button className="link-btn" onClick={onClose} aria-label="Close details">Close</button>
+            </div>
+
+            <p className="run-detail-when">
+                <span className={`timeline-dot${run.upcoming ? ' next' : ' past'}${run.failed ? ' failed' : ''}`} aria-hidden="true" />
+                {run.upcoming ? 'Runs' : 'Ran'} <strong>{runWhen(run)}</strong>
+                <span className="muted"> · {absoluteTime(iso)}</span>
+            </p>
+
+            {!run.upcoming && run.message && (
+                <p className={`run-detail-result${run.failed ? ' run-failed' : ''}`}>{run.message}</p>
+            )}
+
+            {run.upcoming && scene?.schedules && scene.schedules.length > 0 && (
+                <p className="muted run-detail-rule">{scene.schedules.map(describeSchedule).join(' · ')}</p>
+            )}
+
+            {scene && scene.devices.length > 0 && (
+                <ul className="run-detail-devices">
+                    {scene.devices.map(d => (
+                        <li key={d.deviceId}>
+                            {named(d.deviceId)} → <strong>{d.action === DeviceAction.Dim ? `dim ${d.level ?? 0}%` : d.action}</strong>
+                        </li>
+                    ))}
+                </ul>
+            )}
         </div>
     );
 }

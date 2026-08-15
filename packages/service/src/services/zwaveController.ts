@@ -343,10 +343,10 @@ export class ZWaveController {
         const type = this.deviceType(node);
 
         if (type === DeviceType.Dimmer) {
-            await node.commandClasses['Multilevel Switch'].set(on ? ZWaveMaxLevel : 0);
+            await this.setSwitchValue(node, CommandClasses['Multilevel Switch'], on ? ZWaveMaxLevel : 0);
         }
         else if (type === DeviceType.Switch) {
-            await node.commandClasses['Binary Switch'].set(on);
+            await this.setSwitchValue(node, CommandClasses['Binary Switch'], on);
         }
         else {
             throw new Error(`Device ${nodeId} is not a controllable switch or dimmer`);
@@ -363,7 +363,27 @@ export class ZWaveController {
             throw new Error(`Device ${nodeId} is not a dimmer and cannot accept a dim level`);
         }
 
-        await node.commandClasses['Multilevel Switch'].set(this.toZWaveLevel(level));
+        await this.setSwitchValue(node, CommandClasses['Multilevel Switch'], this.toZWaveLevel(level));
+    }
+
+    // Drive a switch through `node.setValue` on targetValue rather than the CC API's
+    // `set()`. Both send the same command, but setValue runs zwave-js's value hooks:
+    // it optimistically updates the cached `currentValue` and schedules a verification
+    // poll (which an unsolicited report from the device cancels). `describeNode` reads
+    // that cached value, so with the CC API a device that never volunteers a report —
+    // common on older non-Plus switches — stayed "on" in GET /devices long after it was
+    // switched off.
+    private async setSwitchValue(node: ZWaveNode, commandClass: CommandClasses, value: number | boolean): Promise<void> {
+        const result = await node.setValue({ commandClass, property: 'targetValue' }, value);
+
+        // Working = the device accepted it and is transitioning (e.g. a dimmer ramping)
+        const accepted = result.status === SetValueStatus.Success
+            || result.status === SetValueStatus.SuccessUnsupervised
+            || result.status === SetValueStatus.Working;
+
+        if (!accepted) {
+            throw new Error(`Device ${node.id} did not accept the command: ${result.message ?? SetValueStatus[result.status]}`);
+        }
     }
 
     // Rename a device. zwave-js stores node.name in the network cache (it is not
