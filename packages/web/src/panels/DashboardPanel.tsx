@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react';
-import type { IDeviceInfo, IRoom, IScene, ISceneStatus, IRebuildRoutesStatus, IConfigDbStatus } from '@zwave-service/contracts';
+import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import { DeviceAction, DeviceStatus } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
-import { relativeTime, relativeUpcoming, absoluteTime, signal, round } from '../format.ts';
+import { relativeTime, relativeUpcoming, absoluteTime, clockTime, signal, round } from '../format.ts';
 
 interface DashboardPanelProps {
     devices: IDeviceInfo[];
@@ -36,7 +35,7 @@ export function DashboardPanel({ devices, rooms, scenes, statuses, run, refresh,
                     totalWatts={hasPower ? totalWatts : undefined}
                     onNavigate={onNavigate}
                 />
-                <MeshCard devices={devices} run={run} refresh={refresh} onNavigate={onNavigate} />
+                <MeshCard devices={devices} onNavigate={onNavigate} />
                 <RoomsCard rooms={rooms} devices={devices} run={run} refresh={refresh} onNavigate={onNavigate} />
                 <ScheduleCard scenes={scenes} statuses={statuses} onNavigate={onNavigate} />
             </div>
@@ -60,7 +59,7 @@ function GlanceCard({ total, on, offline, totalWatts, onNavigate }: GlanceCardPr
                 <button className="link-btn" onClick={() => onNavigate('devices')}>View all</button>
             </div>
             {total === 0
-                ? <p className="muted">No devices yet. Add a switch or dimmer from the Devices tab.</p>
+                ? <p className="muted">No devices yet. Add a switch or dimmer from Devices.</p>
                 : (
                     <div className="stats">
                         <Stat label="Total" value={String(total)} />
@@ -82,218 +81,25 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'on
     );
 }
 
-interface MeshCardProps {
-    devices: IDeviceInfo[];
-    run: RunFn;
-    refresh: () => Promise<void>;
-    onNavigate: (tab: 'devices') => void;
-}
+//
+// Mesh health
+//
+// Every device is represented, but as a dot rather than a row — a 24-node mesh reads
+// as two rows of dots instead of 24 lines. Only the nodes worth acting on are spelled
+// out underneath; healthy ones stay a count.
+//
 
-// Weakest / most-troubled nodes first, so the diagnostic ones surface at the top:
-// dead before alive, then by ascending RSSI (missing RSSI sorts last).
-function meshRank(device: IDeviceInfo): [number, number] {
-    const deadness = isOffline(device) ? 0 : 1;
-    const rssi = device.link?.rssi ?? Infinity;
-    return [deadness, rssi];
-}
+type MeshTone = 'good' | 'warn' | 'bad' | 'unknown';
 
-function MeshCard({ devices, run, refresh, onNavigate }: MeshCardProps) {
-    const unidentified = devices.filter(d => !d.manufacturer);
-    const sorted = [...devices].sort((a, b) => {
-        const [ad, ar] = meshRank(a);
-        const [bd, br] = meshRank(b);
-        return ad - bd || ar - br;
-    });
-
-    const flagged = sorted.filter(d => isOffline(d) || (d.link?.rssi !== undefined && signal(d.link.rssi).level <= 1)).length;
-
-    return (
-        <div className="card dash-card">
-            <div className="dash-card-head">
-                <h3>Mesh health</h3>
-                {flagged > 0 && <span className="pill dead">{flagged} to watch</span>}
-            </div>
-            {devices.length === 0
-                ? <p className="muted">No devices to report on yet.</p>
-                : (
-                    <ul className="mesh-list">
-                        {sorted.map(device => (
-                            <li key={device.nodeId} className="mesh-row">
-                                <span className={`dot ${meshTone(device)}`} aria-hidden="true" />
-                                <span className="mesh-name">{device.name || `Node ${device.nodeId}`}</span>
-                                <span className="mesh-signal">{meshLabel(device)}</span>
-                                <span className="mesh-seen muted" title={absoluteTime(device.link?.lastSeen)}>
-                                    {relativeTime(device.link?.lastSeen)}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            <div className="mesh-maint">
-                <RebuildControl run={run} />
-                {unidentified.length > 0 && (
-                    <ReinterviewUnidentified devices={unidentified} run={run} refresh={refresh} />
-                )}
-                <ConfigDbControl run={run} />
-            </div>
-
-            <p className="muted hint">
-                Signal accumulates passively; open a device and “Test link” for a fresh reading.
-                {' '}
-                <button className="link-btn" onClick={() => onNavigate('devices')}>Devices →</button>
-            </p>
-        </div>
-    );
-}
-
-// Start + track a network-wide route rebuild. Useful after relocating the controller,
-// when devices are still routing through stale (slow) paths.
-function RebuildControl({ run }: { run: RunFn }) {
-    const [status, setStatus] = useState<IRebuildRoutesStatus | null>(null);
-    const [polling, setPolling] = useState(false);
-
-    // Reflect an already-running rebuild on mount
-    useEffect(() => {
-        let alive = true;
-        void api.getRebuildRoutesStatus().then(st => {
-            if (alive) {
-                setStatus(st);
-                if (st.active) {
-                    setPolling(true);
-                }
-            }
-        }).catch(() => { /* ignore */ });
-        return () => { alive = false; };
-    }, []);
-
-    useEffect(() => {
-        if (!polling) {
-            return;
-        }
-        let alive = true;
-        const tick = async (): Promise<void> => {
-            try {
-                const st = await api.getRebuildRoutesStatus();
-                if (!alive) {
-                    return;
-                }
-                setStatus(st);
-                if (!st.active) {
-                    setPolling(false);
-                }
-            }
-            catch { /* ignore transient errors */ }
-        };
-        const id = setInterval(() => void tick(), 3000);
-        return () => { alive = false; clearInterval(id); };
-    }, [polling]);
-
-    const start = async (): Promise<void> => {
-        if (await run(() => api.rebuildAllRoutes())) {
-            setPolling(true);
-        }
-    };
-
-    return (
-        <div className="maint-line">
-            <button onClick={() => void start()} disabled={polling}>
-                {polling ? 'Rebuilding routes…' : 'Rebuild all routes'}
-            </button>
-            {status && (status.active
-                ? <span className="muted">Rebuilding {status.done + status.failed + status.skipped}/{status.total}</span>
-                : status.total > 0 && <span className="muted">Last: {status.done} ok · {status.failed} failed · {status.skipped} skipped</span>)}
-        </div>
-    );
-}
-
-// Check/install a zwave-js device-config-database update. A newer DB can identify
-// devices (and give them named config params) whose model wasn't in the bundled one.
-function ConfigDbControl({ run }: { run: RunFn }) {
-    const [status, setStatus] = useState<IConfigDbStatus | null>(null);
-    const [busy, setBusy] = useState<'check' | 'install' | null>(null);
-
-    const check = async (): Promise<void> => {
-        setBusy('check');
-        try {
-            let result: IConfigDbStatus | null = null;
-            await run(async () => {
-                result = await api.checkConfigDbUpdate();
-                return { message: result.updateAvailable ? `Device-database update available (${result.version})` : 'Device database is up to date' };
-            });
-            if (result) {
-                setStatus(result);
-            }
-        }
-        finally {
-            setBusy(null);
-        }
-    };
-
-    const install = async (): Promise<void> => {
-        setBusy('install');
-        try {
-            if (await run(() => api.installConfigDbUpdate())) {
-                setStatus({ updateAvailable: false });
-            }
-        }
-        finally {
-            setBusy(null);
-        }
-    };
-
-    return (
-        <div className="maint-line">
-            <button onClick={() => void check()} disabled={busy !== null}>
-                {busy === 'check' ? 'Checking…' : 'Check device-DB update'}
-            </button>
-            {status?.updateAvailable && (
-                <button onClick={() => void install()} disabled={busy !== null}>
-                    {busy === 'install' ? 'Installing…' : `Install ${status.version ?? 'update'}`}
-                </button>
-            )}
-            <span className="muted">refreshes named device parameters; re-interview a device after installing</span>
-        </div>
-    );
-}
-
-// Sequentially re-interview the unidentified nodes (spaced out so their interviews
-// don't all start at once and flood a struggling mesh).
-function ReinterviewUnidentified({ devices, run, refresh }: { devices: IDeviceInfo[]; run: RunFn; refresh: () => Promise<void> }) {
-    const [running, setRunning] = useState(false);
-
-    const start = async (): Promise<void> => {
-        setRunning(true);
-        try {
-            for (const device of devices) {
-                await run(() => api.refreshDevice(device.nodeId));
-                await new Promise(resolve => setTimeout(resolve, 1500));
-            }
-            await refresh();
-        }
-        finally {
-            setRunning(false);
-        }
-    };
-
-    return (
-        <div className="maint-line">
-            <button onClick={() => void start()} disabled={running}>
-                {running ? 'Re-interviewing…' : `Re-interview ${devices.length} unidentified`}
-            </button>
-            <span className="muted">devices with no manufacturer/model — often a timed-out interview</span>
-        </div>
-    );
-}
-
-function meshTone(device: IDeviceInfo): string {
+function meshTone(device: IDeviceInfo): MeshTone {
     if (isOffline(device)) {
         return 'bad';
     }
     if (device.link?.rssi === undefined) {
         return 'unknown';
     }
-    const level = signal(device.link.rssi).level;
-    return level >= 2 ? 'good' : 'warn';
+
+    return signal(device.link.rssi).level >= 2 ? 'good' : 'warn';
 }
 
 function meshLabel(device: IDeviceInfo): string {
@@ -303,8 +109,103 @@ function meshLabel(device: IDeviceInfo): string {
     if (device.link?.rssi === undefined) {
         return 'No reading';
     }
+
     return signal(device.link.rssi).label;
 }
+
+function deviceName(device: IDeviceInfo): string {
+    return device.name || `Node ${device.nodeId}`;
+}
+
+// Weakest / most-troubled nodes first: dead before alive, then by ascending RSSI
+// (missing RSSI sorts last).
+function meshRank(device: IDeviceInfo): [number, number] {
+    return [isOffline(device) ? 0 : 1, device.link?.rssi ?? Infinity];
+}
+
+// How many flagged nodes to name before collapsing the rest into a count
+const MaxFlagged = 3;
+
+interface MeshCardProps {
+    devices: IDeviceInfo[];
+    onNavigate: (tab: 'devices') => void;
+}
+
+function MeshCard({ devices, onNavigate }: MeshCardProps) {
+    const sorted = [...devices].sort((a, b) => {
+        const [ad, ar] = meshRank(a);
+        const [bd, br] = meshRank(b);
+        return ad - bd || ar - br;
+    });
+
+    const tones = sorted.map(meshTone);
+    const count = (tone: MeshTone): number => tones.filter(t => t === tone).length;
+
+    // Offline and weak nodes are the ones a person can actually act on; "no reading"
+    // is normal for a node that simply hasn't been talked to yet.
+    const flagged = sorted.filter(d => meshTone(d) === 'bad' || meshTone(d) === 'warn');
+
+    const summary = [
+        count('good') > 0 ? `${count('good')} strong` : undefined,
+        count('warn') > 0 ? `${count('warn')} weak` : undefined,
+        count('bad') > 0 ? `${count('bad')} offline` : undefined,
+        count('unknown') > 0 ? `${count('unknown')} no reading` : undefined
+    ].filter(Boolean).join(' · ');
+
+    return (
+        <div className="card dash-card">
+            <div className="dash-card-head">
+                <h3>Mesh health</h3>
+                {flagged.length > 0
+                    ? <span className="pill dead">{flagged.length} to watch</span>
+                    : devices.length > 0 && <span className="pill ok">all healthy</span>}
+            </div>
+
+            {devices.length === 0
+                ? <p className="muted">No devices to report on yet.</p>
+                : (
+                    <>
+                        <div className="mesh-dots" role="img" aria-label={`Mesh health: ${summary}`}>
+                            {sorted.map((device, index) => (
+                                <span
+                                    key={device.nodeId}
+                                    className={`mesh-dot ${tones[index]}`}
+                                    title={`${deviceName(device)} — ${meshLabel(device)}`}
+                                />
+                            ))}
+                        </div>
+
+                        <p className="mesh-summary muted">{summary}</p>
+
+                        {flagged.length > 0 && (
+                            <ul className="mesh-flags">
+                                {flagged.slice(0, MaxFlagged).map(device => (
+                                    <li key={device.nodeId} className="mesh-flag">
+                                        <span className={`mesh-dot ${meshTone(device)}`} aria-hidden="true" />
+                                        <span className="mesh-flag-name">{deviceName(device)}</span>
+                                        <span className="mesh-flag-state">{meshLabel(device)}</span>
+                                        <span className="mesh-flag-seen muted" title={absoluteTime(device.link?.lastSeen)}>
+                                            {relativeTime(device.link?.lastSeen)}
+                                        </span>
+                                    </li>
+                                ))}
+                                {flagged.length > MaxFlagged && (
+                                    <li className="mesh-flag more muted">
+                                        +{flagged.length - MaxFlagged} more —{' '}
+                                        <button className="link-btn" onClick={() => onNavigate('devices')}>see all devices</button>
+                                    </li>
+                                )}
+                            </ul>
+                        )}
+                    </>
+                )}
+        </div>
+    );
+}
+
+//
+// Rooms — one tile per room, tapped to toggle the whole room
+//
 
 interface RoomsCardProps {
     rooms: IRoom[];
@@ -328,29 +229,58 @@ function RoomsCard({ rooms, devices, run, refresh, onNavigate }: RoomsCardProps)
                 <button className="link-btn" onClick={() => onNavigate('rooms')}>Manage</button>
             </div>
             {rooms.length === 0
-                ? <p className="muted">No rooms yet. Group devices from the Rooms tab.</p>
+                ? <p className="muted">No rooms yet. Group devices from Rooms.</p>
                 : (
-                    <ul className="room-quick">
-                        {rooms.map(room => (
-                            <li key={room.id} className="room-quick-row">
-                                <span className="room-quick-name">
-                                    {room.name}
-                                    <span className="muted"> · {onlineDeviceCount(room, devices)} device{room.deviceIds.length === 1 ? '' : 's'}</span>
-                                </span>
-                                <span className="room-quick-controls">
-                                    <button onClick={() => void control(room, DeviceAction.On)} disabled={room.deviceIds.length === 0}>All on</button>
-                                    <button onClick={() => void control(room, DeviceAction.Off)} disabled={room.deviceIds.length === 0}>All off</button>
-                                </span>
-                            </li>
-                        ))}
+                    <ul className="room-tiles">
+                        {rooms.map(room => {
+                            const members = devices.filter(d => room.deviceIds.includes(d.nodeId));
+                            const onCount = members.filter(d => d.on === true).length;
+                            const anyOn = onCount > 0;
+
+                            return (
+                                <li key={room.id}>
+                                    {/* One tap toggles the room: everything off if anything is on, else all on */}
+                                    <button
+                                        className={`room-tile${anyOn ? ' on' : ''}`}
+                                        disabled={members.length === 0}
+                                        title={anyOn ? `Turn ${room.name} off` : `Turn ${room.name} on`}
+                                        onClick={() => void control(room, anyOn ? DeviceAction.Off : DeviceAction.On)}
+                                    >
+                                        <span className="room-tile-name">{room.name}</span>
+                                        <span className="room-tile-state">
+                                            <span className={`room-tile-dot${anyOn ? ' on' : ''}`} aria-hidden="true" />
+                                            {members.length === 0 ? 'no devices' : `${onCount}/${members.length} on`}
+                                        </span>
+                                    </button>
+                                </li>
+                            );
+                        })}
                     </ul>
                 )}
         </div>
     );
 }
 
-function onlineDeviceCount(room: IRoom, devices: IDeviceInfo[]): number {
-    return room.deviceIds.filter(id => devices.some(d => d.nodeId === id)).length;
+//
+// Schedule — a timeline strip instead of two lists
+//
+// Runs are plotted on one track around a "now" marker: filled dots behind it are recent
+// activations, hollow dots ahead are planned ones. The window stretches to fit whatever
+// is plotted, so the strip is a fixed height no matter how many scenes exist.
+//
+
+// How many runs to plot on each side of "now"
+const MaxPlotted = 4;
+
+// Smallest window half-width, so a single run a few minutes away doesn't sit on the edge
+const MinWindowMs = 60 * 60 * 1000;
+
+interface PlottedRun {
+    key: string;
+    name: string;
+    at: number;
+    upcoming: boolean;
+    failed: boolean;
 }
 
 interface ScheduleCardProps {
@@ -363,15 +293,48 @@ function ScheduleCard({ scenes, statuses, onNavigate }: ScheduleCardProps) {
     const nameById = new Map(scenes.map(s => [s.id, s.name]));
     const named = (id: string): string => nameById.get(id) ?? 'Unknown scene';
 
-    const upcoming = statuses
-        .filter(s => s.nextRun)
-        .sort((a, b) => new Date(a.nextRun!).getTime() - new Date(b.nextRun!).getTime())
-        .slice(0, 4);
+    const now = Date.now();
 
-    const recent = statuses
+    const past: PlottedRun[] = statuses
         .filter(s => s.lastRun)
-        .sort((a, b) => new Date(b.lastRun!).getTime() - new Date(a.lastRun!).getTime())
-        .slice(0, 4);
+        .map(s => ({
+            key: `p${s.sceneId}`,
+            name: named(s.sceneId),
+            at: new Date(s.lastRun as string).getTime(),
+            upcoming: false,
+            failed: s.lastResult ? !s.lastResult.succeeded : false
+        }))
+        .filter(r => Number.isFinite(r.at))
+        .sort((a, b) => b.at - a.at)
+        .slice(0, MaxPlotted);
+
+    const future: PlottedRun[] = statuses
+        .filter(s => s.nextRun)
+        .map(s => ({
+            key: `n${s.sceneId}`,
+            name: named(s.sceneId),
+            at: new Date(s.nextRun as string).getTime(),
+            upcoming: true,
+            failed: false
+        }))
+        .filter(r => Number.isFinite(r.at))
+        .sort((a, b) => a.at - b.at)
+        .slice(0, MaxPlotted);
+
+    const runs = [...past, ...future];
+
+    // Symmetric window so "now" sits in the middle and both sides stay readable, with
+    // a little headroom so the outermost run doesn't sit on the very edge
+    const reach = Math.max(
+        MinWindowMs,
+        ...runs.map(r => Math.abs(r.at - now) * 1.15)
+    );
+    const start = now - reach;
+    const end = now + reach;
+    const position = (at: number): number => ((at - start) / (end - start)) * 100;
+
+    const lastRun = past[0];
+    const nextRun = future[0];
 
     return (
         <div className="card dash-card">
@@ -380,39 +343,51 @@ function ScheduleCard({ scenes, statuses, onNavigate }: ScheduleCardProps) {
                 <button className="link-btn" onClick={() => onNavigate('scenes')}>Scenes</button>
             </div>
 
-            {upcoming.length === 0 && recent.length === 0
+            {runs.length === 0
                 ? <p className="muted">No scheduled or recent scene runs yet.</p>
                 : (
                     <>
-                        {upcoming.length > 0 && (
-                            <div className="sched-group">
-                                <h4>Upcoming</h4>
-                                <ul className="sched-list">
-                                    {upcoming.map(s => (
-                                        <li key={s.sceneId}>
-                                            <span className="sched-name">{named(s.sceneId)}</span>
-                                            <span className="sched-when" title={absoluteTime(s.nextRun)}>{relativeUpcoming(s.nextRun)}</span>
-                                        </li>
-                                    ))}
-                                </ul>
+                        <div className="timeline">
+                            <div className="timeline-track" />
+                            {runs.map(run => (
+                                <span
+                                    key={run.key}
+                                    className={`timeline-dot${run.upcoming ? ' next' : ' past'}${run.failed ? ' failed' : ''}`}
+                                    style={{ left: `${position(run.at)}%` }}
+                                    title={`${run.name} — ${run.upcoming ? relativeUpcoming(new Date(run.at).toISOString()) : relativeTime(new Date(run.at).toISOString())}`}
+                                />
+                            ))}
+                            <span className="timeline-now" style={{ left: '50%' }} aria-hidden="true" />
+                            <div className="timeline-scale">
+                                <span>{clockTime(start)}</span>
+                                <span className="timeline-now-label">now</span>
+                                <span>{clockTime(end)}</span>
                             </div>
-                        )}
-                        {recent.length > 0 && (
-                            <div className="sched-group">
-                                <h4>Recent</h4>
-                                <ul className="sched-list">
-                                    {recent.map(s => (
-                                        <li key={s.sceneId}>
-                                            <span className="sched-name">
-                                                {named(s.sceneId)}
-                                                {s.lastResult && !s.lastResult.succeeded && <span className="run-failed" title={s.lastResult.message}> · failed</span>}
-                                            </span>
-                                            <span className="sched-when muted" title={absoluteTime(s.lastRun)}>{relativeTime(s.lastRun)}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
+                        </div>
+
+                        <dl className="sched-lines">
+                            {nextRun && (
+                                <div className="sched-line">
+                                    <dt className="k">Next</dt>
+                                    <dd className="v">{nextRun.name}</dd>
+                                    <dd className="t" title={absoluteTime(new Date(nextRun.at).toISOString())}>
+                                        {relativeUpcoming(new Date(nextRun.at).toISOString())}
+                                    </dd>
+                                </div>
+                            )}
+                            {lastRun && (
+                                <div className="sched-line">
+                                    <dt className="k">Last</dt>
+                                    <dd className="v">
+                                        {lastRun.name}
+                                        {lastRun.failed && <span className="run-failed"> · failed</span>}
+                                    </dd>
+                                    <dd className="t" title={absoluteTime(new Date(lastRun.at).toISOString())}>
+                                        {relativeTime(new Date(lastRun.at).toISOString())}
+                                    </dd>
+                                </div>
+                            )}
+                        </dl>
                     </>
                 )}
         </div>

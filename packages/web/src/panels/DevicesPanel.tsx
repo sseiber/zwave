@@ -4,6 +4,7 @@ import { DeviceAction, DeviceType } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 import { relativeTime, signal, round } from '../format.ts';
+import { Maintenance } from './Maintenance.tsx';
 
 interface DevicesPanelProps {
     devices: IDeviceInfo[];
@@ -43,6 +44,8 @@ export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
             </div>
 
             {including && <div className="banner status">Inclusion is active — activate pairing on the physical device now.</div>}
+
+            <Maintenance devices={devices} run={run} refresh={refresh} />
 
             {devices.length === 0
                 ? <p className="muted">No devices yet. Use “Add device” and pair a switch or dimmer.</p>

@@ -71,6 +71,11 @@ export function absoluteTime(iso: string | undefined): string {
     return Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
 }
 
+// Short local clock time ("4:55 PM") for a timeline scale label.
+export function clockTime(at: number): string {
+    return new Date(at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 // Map RSSI (dBm, negative — closer to 0 is stronger) to a label + a 0-3 strength.
 export function signal(rssi: number | undefined): { label: string; level: number } {
     if (typeof rssi !== 'number') {
