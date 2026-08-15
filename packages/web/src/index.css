@@ -29,6 +29,9 @@ body {
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     background: var(--bg);
     color: var(--text);
+    /* Touch: don't let a stray drag rubber-band the page or scroll it sideways */
+    overscroll-behavior: none;
+    overflow-x: hidden;
 }
 
 .app {
@@ -53,15 +56,54 @@ h1 { font-size: 1.4rem; margin: 0; }
 button {
     font: inherit;
     padding: 0.45rem 0.8rem;
+    min-height: 2.5rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--card);
     color: var(--text);
     cursor: pointer;
+    /* A touch that starts on a button belongs to the button, not to the scroller —
+       this is what stops a tap turning into a page scroll. Activation is then driven
+       from pointerup in press.ts, which is far more forgiving about finger drift. */
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: background-color 90ms ease-out, color 90ms ease-out, border-color 90ms ease-out, transform 90ms ease-out;
 }
 button:hover { border-color: var(--accent); }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.warn { background: var(--warn); border-color: var(--warn); color: #fff; }
+
+/*
+ * Press feedback. `:active` covers the mouse instantly; `.is-pressed` is added by
+ * press.ts and held ~350ms so a finger tap is unmistakable on a touch screen. Each
+ * variant inverts against its own resting colors.
+ */
+button:active,
+button.is-pressed {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    transform: scale(0.97);
+}
+button.primary:active,
+button.primary.is-pressed {
+    background: var(--card);
+    border-color: var(--accent);
+    color: var(--accent);
+}
+button.warn:active,
+button.warn.is-pressed { background: var(--card); border-color: var(--warn); color: var(--warn); }
+button.danger:active,
+button.danger.is-pressed { background: #dc2626; border-color: #dc2626; color: #fff; }
+button:disabled:active,
+button:disabled.is-pressed { background: var(--card); color: var(--text); border-color: var(--border); transform: none; }
+
+/* Sliders and checkboxes claim their gesture too, so dragging a dimmer or ticking a
+   device in the scene editor never pans the page */
+input[type="range"], input[type="checkbox"] { touch-action: none; }
+select, label.check { touch-action: manipulation; }
 
 .banner {
     padding: 0.6rem 0.8rem;
@@ -75,7 +117,7 @@ button.warn { background: var(--warn); border-color: var(--warn); color: #fff; }
 .muted { color: var(--muted); }
 
 /* Tabs */
-.tabs { display: flex; gap: 0.4rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
 .tab {
     border: none;
     border-bottom: 2px solid transparent;
@@ -170,6 +212,9 @@ label.check input { width: auto; }
 }
 .scene-actions strong { color: var(--text); font-weight: 600; }
 
+/* Text-style buttons ("Remove") opt out of the touch-target minimum */
+.link-btn { min-height: 0; }
+
 .spacer { flex: 1; }
 
 .pill {
@@ -193,7 +238,7 @@ label.check input { width: auto; }
     margin: 0.4rem 0 0.7rem;
 }
 
-.controls { display: flex; align-items: center; gap: 0.5rem; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .controls input[type="range"] { flex: 1; }
 
 .pill.manual { color: var(--accent); border-color: var(--accent); }
