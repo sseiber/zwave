@@ -112,8 +112,9 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - The **Dashboard is the home view**; Devices / Rooms / Scenes are reached from a
      fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
    - Dashboard cards are roll-ups, deliberately fixed-height rather than per-device
-     lists: devices-at-a-glance + total power; a **health** card (score + sparkline +
-     headline + why, over a dot per device) polling `GET /network/health`; one toggle tile per
+     lists: devices-at-a-glance + total power; a **health** card (score ring + state
+     + one sentence, with the reasons, trend and raw readings behind a disclosure)
+     polling `GET /network/health`; one toggle tile per
      room (tap = all off if any are on, else all on); and a schedule timeline strip with
      recent runs behind a "now" marker and planned runs ahead of it.
    - Mesh maintenance (route rebuild, device-DB update, re-interview unidentified) lives
