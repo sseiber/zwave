@@ -4,6 +4,7 @@ import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/co
 import type { RunFn } from './types.ts';
 import { api } from './api.ts';
 import { usePressFeedback } from './press.ts';
+import { Toast, useToast } from './Toast.tsx';
 import { DashboardPanel } from './panels/DashboardPanel.tsx';
 import { DevicesPanel } from './panels/DevicesPanel.tsx';
 import { RoomsPanel } from './panels/RoomsPanel.tsx';
@@ -70,51 +71,49 @@ export function App() {
     const [scenes, setScenes] = useState<IScene[]>([]);
     const [sceneStatus, setSceneStatus] = useState<ISceneStatus[]>([]);
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [status, setStatus] = useState<string | null>(null);
+    const [toast, { show, dismiss }] = useToast();
 
-    // Sustained press feedback + touch activation for every button (see press.ts)
+    // Subtle press highlighting for every button (see press.ts)
     usePressFeedback();
 
     const refreshDevices = useCallback(async (): Promise<void> => {
         try {
             setDevices(await api.listDevices());
-            setError(null);
         }
         catch (ex) {
-            setError(toMessage(ex));
+            show('error', toMessage(ex));
         }
         finally {
             setLoading(false);
         }
-    }, []);
+    }, [show]);
 
     const refreshRooms = useCallback(async (): Promise<void> => {
         try {
             setRooms(await api.listRooms());
         }
         catch (ex) {
-            setError(toMessage(ex));
+            show('error', toMessage(ex));
         }
-    }, []);
+    }, [show]);
 
     const refreshScenes = useCallback(async (): Promise<void> => {
         try {
             setScenes(await api.listScenes());
         }
         catch (ex) {
-            setError(toMessage(ex));
+            show('error', toMessage(ex));
         }
-    }, []);
+    }, [show]);
 
     const refreshSceneStatus = useCallback(async (): Promise<void> => {
         try {
             setSceneStatus(await api.listSceneStatus());
         }
         catch (ex) {
-            setError(toMessage(ex));
+            show('error', toMessage(ex));
         }
-    }, []);
+    }, [show]);
 
     // Initial load, then poll device state and scene run-times so the UI stays live
     useEffect(() => {
@@ -133,33 +132,29 @@ export function App() {
     const run = useCallback<RunFn>(async (fn, successMessage) => {
         try {
             const result = await fn();
-            setError(null);
 
             const message = successMessage
                 ?? (result && typeof result === 'object' && 'message' in result
                     ? String((result as { message: unknown }).message)
                     : undefined);
             if (message) {
-                setStatus(message);
+                show('status', message);
             }
 
             return true;
         }
         catch (ex) {
-            setError(toMessage(ex));
+            show('error', toMessage(ex));
 
             return false;
         }
-    }, []);
+    }, [show]);
 
     return (
         <div className="app">
             <header>
                 <h1>Z-Wave Control</h1>
             </header>
-
-            {error && <div className="banner error" onClick={() => setError(null)}>{error}</div>}
-            {status && !error && <div className="banner status" onClick={() => setStatus(null)}>{status}</div>}
 
             {loading
                 ? <p className="muted">Loading…</p>
@@ -187,6 +182,8 @@ export function App() {
                     </button>
                 ))}
             </nav>
+
+            <Toast toast={toast} onDismiss={dismiss} />
         </div>
     );
 }

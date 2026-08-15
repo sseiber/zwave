@@ -3,6 +3,7 @@ import type { IDeviceInfo, IRoom } from '@zwave-service/contracts';
 import { DeviceAction } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
+import { ActionMenu } from './ActionMenu.tsx';
 
 interface RoomsPanelProps {
     rooms: IRoom[];
@@ -49,7 +50,10 @@ export function RoomsPanel({ rooms, devices, run, refresh, refreshDevices }: Roo
         <section>
             <div className="panel-head">
                 <h2>Rooms</h2>
-                <button className="primary" onClick={() => setEditing('new')} disabled={editing !== null}>New room</button>
+                <ActionMenu
+                    label="Room actions"
+                    items={[{ label: 'New room', onSelect: () => setEditing('new'), disabled: editing !== null }]}
+                />
             </div>
 
             {editing && (

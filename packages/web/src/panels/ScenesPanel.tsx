@@ -5,6 +5,7 @@ import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 import { defaultSchedule, describeSchedule } from '../schedule.ts';
 import { relativeTime, relativeUpcoming, absoluteTime } from '../format.ts';
+import { ActionMenu } from './ActionMenu.tsx';
 import { SchedulePicker } from './SchedulePicker.tsx';
 
 interface ScenesPanelProps {
@@ -77,13 +78,15 @@ export function ScenesPanel({ scenes, statuses, rooms, devices, run, refresh, re
         <section>
             <div className="panel-head">
                 <h2>Scenes</h2>
-                <button
-                    className="primary"
-                    onClick={() => setEditing('new')}
-                    disabled={editing !== null || devices.length === 0}
-                >
-                    New scene
-                </button>
+                <ActionMenu
+                    label="Scene actions"
+                    items={[{
+                        label: 'New scene',
+                        onSelect: () => setEditing('new'),
+                        disabled: editing !== null || devices.length === 0,
+                        hint: devices.length === 0 ? 'include a device first' : undefined
+                    }]}
+                />
             </div>
 
             {devices.length === 0 && (

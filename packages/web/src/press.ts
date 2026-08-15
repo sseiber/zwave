@@ -1,35 +1,24 @@
 import { useEffect } from 'react';
 
 //
-// Touch/press behavior for every button in the app, installed once from App.
+// Press highlighting for every button in the app, installed once from App.
 //
-// Two problems this solves on a touch screen:
+// Scrolling comes first: a finger dragged across the screen must pan the page even when
+// it starts on a button, and must never activate it. So this module does NOT drive
+// activation — the browser's own click does, and the browser already cancels that click
+// when the touch turns into a scroll. All we add is the visual: a subtle highlight while
+// a finger genuinely rests on a button, dropped the moment the touch starts to travel.
 //
-//  1. No feedback. `:hover` never applies to a finger and `:active` disappears the
-//     instant the finger lifts, so a tap looked like nothing happened — especially for
-//     a scene activate, where the real result (lights changing) is seconds away. Every
-//     press now gets an inverted `.is-pressed` state held for at least MinPressMs.
-//
-//  2. Taps turning into scrolls. Combined with `touch-action: none` on controls (see
-//     index.css), a touch starting on a button can no longer pan the page. The browser
-//     still cancels its own click if the finger drifts even slightly, so activation is
-//     driven from pointerup here with a much more forgiving slop radius, and the
-//     browser's late click (if it comes) is swallowed so nothing fires twice.
-//
-// Mouse and keyboard keep the native click path untouched.
+// (An earlier version claimed the gesture with `touch-action: none` and synthesized
+// clicks from pointerup. It made taps reliable but stopped drags that began on a button
+// from scrolling, and lit buttons up as a finger swept past them.)
 //
 
-// How long the inverted state stays up, even for a quick tap. Long enough to read as
-// "that registered" without feeling laggy.
-const MinPressMs = 350;
+// A quick tap would otherwise flash for only a few milliseconds
+const MinPressMs = 140;
 
-// How far a finger may travel and still count as a tap. The browser's own threshold is
-// roughly 10px, which is what made presses feel unreliable at a wall panel.
-const SlopPx = 30;
-
-// A browser-generated click arriving after our own is a duplicate; ignore clicks on a
-// button for this long after we activated it ourselves.
-const DuplicateClickWindowMs = 700;
+// Travel beyond this is a scroll, not a press: drop the highlight and let it go
+const SlopPx = 10;
 
 export function usePressFeedback(): void {
     useEffect(() => {
@@ -37,23 +26,9 @@ export function usePressFeedback(): void {
         let startX = 0;
         let startY = 0;
         let pressedAt = 0;
-        let cancelled = false;
 
-        // True only while we are dispatching our own click, so the capture-phase guard
-        // below can tell our click apart from the browser's duplicate
-        let dispatching = false;
-        let suppressClicksUntil = 0;
-        let suppressTarget: HTMLButtonElement | undefined;
-
-        const releaseVisual = (element: HTMLElement, held: number): void => {
-            const remaining = Math.max(0, MinPressMs - held);
-
-            window.setTimeout(() => element.classList.remove('is-pressed'), remaining);
-        };
-
-        const clear = (): void => {
-            target = undefined;
-            cancelled = false;
+        const release = (element: HTMLButtonElement, held: number): void => {
+            window.setTimeout(() => element.classList.remove('is-pressed'), Math.max(0, MinPressMs - held));
         };
 
         const onPointerDown = (event: PointerEvent): void => {
@@ -70,83 +45,38 @@ export function usePressFeedback(): void {
             startX = event.clientX;
             startY = event.clientY;
             pressedAt = performance.now();
-            cancelled = false;
 
             button.classList.add('is-pressed');
         };
 
         const onPointerMove = (event: PointerEvent): void => {
-            if (!target || cancelled) {
+            if (!target) {
                 return;
             }
 
-            const travelled = Math.hypot(event.clientX - startX, event.clientY - startY);
-            if (travelled > SlopPx) {
-                cancelled = true;
-
+            if (Math.hypot(event.clientX - startX, event.clientY - startY) > SlopPx) {
                 target.classList.remove('is-pressed');
+                target = undefined;
             }
         };
 
-        const onPointerUp = (event: PointerEvent): void => {
-            const button = target;
-            if (!button) {
-                return;
-            }
-
-            const held = performance.now() - pressedAt;
-
-            releaseVisual(button, held);
-
-            // Touch/pen only: the mouse path already delivers a reliable click, and
-            // taking it over here would just risk double activation
-            if (!cancelled && event.pointerType !== 'mouse' && !button.disabled) {
-                dispatching = true;
-                button.click();
-                dispatching = false;
-
-                suppressClicksUntil = performance.now() + DuplicateClickWindowMs;
-                suppressTarget = button;
-            }
-
-            clear();
-        };
-
-        const onPointerCancel = (): void => {
+        const onPointerEnd = (): void => {
             if (target) {
-                releaseVisual(target, performance.now() - pressedAt);
+                release(target, performance.now() - pressedAt);
+                target = undefined;
             }
-
-            clear();
-        };
-
-        // Swallow the browser's own click for a button we just activated ourselves
-        const onClickCapture = (event: MouseEvent): void => {
-            if (dispatching) {
-                return;
-            }
-
-            const button = (event.target as HTMLElement | null)?.closest('button');
-            if (!button || button !== suppressTarget || performance.now() > suppressClicksUntil) {
-                return;
-            }
-
-            event.preventDefault();
-            event.stopPropagation();
         };
 
         document.addEventListener('pointerdown', onPointerDown, true);
         document.addEventListener('pointermove', onPointerMove, true);
-        document.addEventListener('pointerup', onPointerUp, true);
-        document.addEventListener('pointercancel', onPointerCancel, true);
-        document.addEventListener('click', onClickCapture, true);
+        document.addEventListener('pointerup', onPointerEnd, true);
+        document.addEventListener('pointercancel', onPointerEnd, true);
 
         return () => {
             document.removeEventListener('pointerdown', onPointerDown, true);
             document.removeEventListener('pointermove', onPointerMove, true);
-            document.removeEventListener('pointerup', onPointerUp, true);
-            document.removeEventListener('pointercancel', onPointerCancel, true);
-            document.removeEventListener('click', onClickCapture, true);
+            document.removeEventListener('pointerup', onPointerEnd, true);
+            document.removeEventListener('pointercancel', onPointerEnd, true);
         };
     }, []);
 }
