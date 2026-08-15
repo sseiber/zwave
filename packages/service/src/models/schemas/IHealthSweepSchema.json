@@ -1,0 +1,38 @@
+{
+  "$id": "IHealthSweep",
+  "$ref": "#/definitions/IHealthSweep",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "IHealthSweep": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "number"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "rtt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "nodeId",
+        "name",
+        "active",
+        "at",
+        "ok"
+      ],
+      "type": "object"
+    }
+  }
+}

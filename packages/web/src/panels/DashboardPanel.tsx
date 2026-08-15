@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { IDeviceInfo, INetworkHealth, INodeHealth, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
+import type { IDeviceInfo, IHealthSample, IHealthSweep, INetworkHealth, INodeHealth, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import { DeviceAction, DeviceStatus, HealthState, NodeHealthState } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
@@ -86,16 +86,23 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'on
 //
 // Network health
 //
-// The service folds controller traffic, per-device reliability, latency, signal and the
-// RF noise floor into one score. The card shows that as a gauge, a state word and a
-// single sentence — three things, one size each. Everything that supports the verdict
-// (the reasons, the trend, the raw readings) sits behind the disclosure, so the resting
-// state of the card is calm and the numbers are one tap away when they matter.
+// A live instrument rather than a paragraph: the verdict is one compact line, the
+// sweep line names the device being measured right now (which is what makes the card
+// feel alive between user actions), and the chart carries the actual information —
+// noise floor, error rate and response time over the last couple of hours. Reasons and
+// exact readings stay behind the disclosure.
 //
 
-// Health is sampled service-side every 30s; polling faster only re-fetches the same
-// verdict, and the background sweep keeps device readings moving underneath it.
-const HealthPollMs = 15000;
+// Health is sampled service-side every 30s; the sweep pings a device every 60s, so
+// polling at this rate keeps the sweep line and the chart's right edge moving.
+const HealthPollMs = 10000;
+
+// Each series is drawn against its own range, so shapes are comparable even though the
+// units are not. The legend carries the real value with its unit.
+const NoiseFloorDbm = -100;
+const NoiseCeilingDbm = -40;
+const ErrorCeiling = 0.2;
+const ResponseCeilingMs = 1000;
 
 function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
     const [health, setHealth] = useState<INetworkHealth | null>(null);
@@ -138,12 +145,16 @@ function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
     }
 
     const tone = health.state === HealthState.Good ? 'good' : health.state === HealthState.Fair ? 'warn' : 'bad';
-    const problems = health.nodes.filter(node => node.state === NodeHealthState.Offline || node.state === NodeHealthState.Poor);
+    const latest = health.samples.at(-1);
 
     return (
         <div className={`card dash-card health ${tone}`}>
             <div className="dash-card-head">
-                <h3>Health</h3>
+                <div className="health-title">
+                    <h3>Health</h3>
+                    <span className={`health-badge ${tone}`}>{health.score}</span>
+                    <span className="health-state">{stateLabel(health.state)}</span>
+                </div>
                 <button
                     className="scene-details-toggle health-toggle"
                     onClick={() => setOpen(current => !current)}
@@ -155,16 +166,15 @@ function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
                 </button>
             </div>
 
-            {/* The verdict: gauge, state, one sentence. Nothing else at this level. */}
-            <div className="health-hero">
-                <Gauge score={health.score} tone={tone} />
-                <div className="health-verdict">
-                    <span className="health-state">{stateLabel(health.state)}</span>
-                    <p className="health-headline">{health.headline}</p>
-                </div>
-            </div>
+            <p className="health-headline">{health.headline}</p>
 
-            <DeviceStrip nodes={health.nodes} problems={problems.length} />
+            <SweepLine sweep={health.sweep} />
+
+            <HealthChart samples={health.samples} />
+
+            <Legend latest={latest} />
+
+            <DeviceStrip nodes={health.nodes} />
 
             {open && (
                 <div className="health-details">
@@ -179,14 +189,10 @@ function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
                         </ul>
                     )}
 
-                    <Trend values={health.trend} tone={tone} />
-
                     <dl className="health-readings">
                         <Reading label="Responding" value={`${health.devices.responding}/${health.devices.total}`} />
                         {health.devices.unmeasured > 0 && <Reading label="Unmeasured" value={String(health.devices.unmeasured)} />}
                         <Reading label="Traffic" value={`${health.traffic.messagesPerMinute}/min`} />
-                        <Reading label="Errors" value={`${Math.round(health.traffic.errorRate * 100)}%`} />
-                        {health.noise && <Reading label="Noise floor" value={`${health.noise.current} dBm`} />}
                         <Reading label="Updated" value={relativeTime(health.sampledAt)} title={absoluteTime(health.sampledAt)} />
                     </dl>
 
@@ -197,45 +203,167 @@ function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
     );
 }
 
-// The score as a ring. The arc length is the score, so "how healthy" reads before any
-// number does — and a full ring is the resting state of a well-behaved mesh.
-function Gauge({ score, tone }: { score: number; tone: string }) {
-    const radius = 34;
-    const circumference = 2 * Math.PI * radius;
-    const arc = (Math.max(0, Math.min(100, score)) / 100) * circumference;
+// The sweep, named. A device is measured every minute, so this line changes constantly
+// — it is the card's pulse.
+function SweepLine({ sweep }: { sweep: IHealthSweep | undefined }) {
+    if (!sweep) {
+        return <p className="sweep-line muted">Measuring devices…</p>;
+    }
+
+    if (sweep.active) {
+        return (
+            <p className="sweep-line active">
+                <span className="sweep-pulse" aria-hidden="true" />
+                Checking <strong>{sweep.name}</strong>…
+            </p>
+        );
+    }
 
     return (
-        <div className={`gauge ${tone}`}>
-            <svg viewBox="0 0 80 80" aria-hidden="true">
-                <circle className="gauge-track" cx="40" cy="40" r={radius} />
-                <circle
-                    className="gauge-arc"
-                    cx="40"
-                    cy="40"
-                    r={radius}
-                    strokeDasharray={`${round2(arc)} ${round2(circumference - arc)}`}
-                    transform="rotate(-90 40 40)"
-                />
+        <p className="sweep-line muted" title={absoluteTime(sweep.at)}>
+            <span className={`sweep-dot ${sweep.ok ? 'ok' : 'bad'}`} aria-hidden="true" />
+            Checked <strong>{sweep.name}</strong>
+            {sweep.ok && sweep.rtt !== undefined ? ` · ${sweep.rtt} ms` : ' · no answer'}
+            {` · ${relativeTime(sweep.at)}`}
+        </p>
+    );
+}
+
+interface SeriesSpec {
+    key: string;
+    className: string;
+    // Value for a sample, or undefined where the series has no reading
+    value: (sample: IHealthSample) => number | undefined;
+    // Map a value into 0 (bottom) - 1 (top)
+    scale: (value: number) => number;
+    area?: boolean;
+}
+
+const Series: SeriesSpec[] = [
+    {
+        key: 'noise',
+        className: 'noise',
+        value: sample => sample.noise,
+        scale: value => (value - NoiseFloorDbm) / (NoiseCeilingDbm - NoiseFloorDbm),
+        area: true
+    },
+    {
+        key: 'errors',
+        className: 'errors',
+        value: sample => sample.errorRate,
+        scale: value => value / ErrorCeiling
+    },
+    {
+        key: 'response',
+        className: 'response',
+        value: sample => sample.responseMs,
+        scale: value => value / ResponseCeilingMs
+    }
+];
+
+// Noise floor, errors and response time over the retained window. Drawn by hand in SVG
+// — three series, no library, no axes to speak of: the shape is the point, and the
+// legend below carries the current value of each.
+function HealthChart({ samples }: { samples: IHealthSample[] }) {
+    if (samples.length < 2) {
+        return <div className="health-chart empty muted">Collecting readings…</div>;
+    }
+
+    const width = 300;
+    const height = 96;
+
+    const x = (index: number): number => (index / (samples.length - 1)) * width;
+    const y = (unit: number): number => height - Math.max(0, Math.min(1, unit)) * height;
+
+    const paths = Series.map((series) => {
+        // Gaps matter: a series with no reading yet should not draw a line along zero
+        const points = samples
+            .map((sample, index) => {
+                const value = series.value(sample);
+
+                return value === undefined ? undefined : `${round2(x(index))},${round2(y(series.scale(value)))}`;
+            })
+            .filter((point): point is string => point !== undefined);
+
+        return { series, points };
+    }).filter(entry => entry.points.length > 1);
+
+    const first = samples[0];
+    const middle = samples[Math.floor(samples.length / 2)];
+
+    return (
+        <div className="health-chart">
+            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+                {[0.25, 0.5, 0.75].map(fraction => (
+                    <line key={fraction} className="chart-grid" x1={0} x2={width} y1={height * fraction} y2={height * fraction} />
+                ))}
+
+                {paths.map(({ series, points }) => (
+                    series.area
+                        ? (
+                            <polygon
+                                key={`${series.key}-area`}
+                                className={`chart-area ${series.className}`}
+                                points={`0,${height} ${points.join(' ')} ${width},${height}`}
+                            />
+                        )
+                        : null
+                ))}
+
+                {paths.map(({ series, points }) => (
+                    <polyline key={series.key} className={`chart-line ${series.className}`} points={points.join(' ')} />
+                ))}
             </svg>
-            <span className="gauge-value">{score}</span>
+
+            <div className="chart-axis muted">
+                <span>{clockTime(new Date(first.at).getTime())}</span>
+                <span>{clockTime(new Date(middle.at).getTime())}</span>
+                <span>Now</span>
+            </div>
         </div>
+    );
+}
+
+// Current value of each series, colour-matched to its line
+function Legend({ latest }: { latest: IHealthSample | undefined }) {
+    if (!latest) {
+        return null;
+    }
+
+    return (
+        <ul className="chart-legend">
+            <li className="noise">
+                <span className="swatch" aria-hidden="true" />
+                Noise <strong>{latest.noise !== undefined ? `${latest.noise} dBm` : '—'}</strong>
+            </li>
+            <li className="errors">
+                <span className="swatch" aria-hidden="true" />
+                Errors <strong>{Math.round(latest.errorRate * 100)}%</strong>
+            </li>
+            <li className="response">
+                <span className="swatch" aria-hidden="true" />
+                Response <strong>{latest.responseMs !== undefined ? `${latest.responseMs} ms` : '—'}</strong>
+            </li>
+        </ul>
     );
 }
 
 // One dot per device, worst first. Healthy devices stay quiet so the eye is caught by
 // the exceptions rather than by a wall of green.
-function DeviceStrip({ nodes, problems }: { nodes: INodeHealth[]; problems: number }) {
+function DeviceStrip({ nodes }: { nodes: INodeHealth[] }) {
     if (nodes.length === 0) {
         return null;
     }
 
-    const label = problems > 0
-        ? `${problems} device${problems === 1 ? '' : 's'} need attention`
-        : `${nodes.length} devices`;
+    const problems = nodes.filter(node => node.state === NodeHealthState.Offline || node.state === NodeHealthState.Poor).length;
 
     return (
         <div className="device-strip">
-            <div className="mesh-dots" role="img" aria-label={label}>
+            <div
+                className="mesh-dots"
+                role="img"
+                aria-label={problems > 0 ? `${problems} devices need attention` : `${nodes.length} devices healthy`}
+            >
                 {[...nodes]
                     .sort((a, b) => nodeRank(a.state) - nodeRank(b.state))
                     .map(node => (
@@ -256,35 +384,6 @@ function Reading({ label, value, title }: { label: string; value: string; title?
             <dt>{label}</dt>
             <dd>{value}</dd>
         </div>
-    );
-}
-
-// The score's recent movement. Only shown in the details, since a healthy mesh draws a
-// flat line that says nothing at a glance.
-function Trend({ values, tone }: { values: number[]; tone: string }) {
-    if (values.length < 2) {
-        return null;
-    }
-
-    const width = 100;
-    const height = 24;
-
-    // Anchor the scale to a fixed band, so a mesh sitting at 100 draws a flat line at
-    // the top rather than having its noise amplified to fill the box
-    const min = Math.min(50, ...values);
-    const span = Math.max(1, 100 - min);
-
-    const points = values.map((value, index) => {
-        const x = (index / (values.length - 1)) * width;
-        const y = height - ((value - min) / span) * height;
-
-        return `${round2(x)},${round2(y)}`;
-    });
-
-    return (
-        <svg className={`trend ${tone}`} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
-            <polyline points={points.join(' ')} />
-        </svg>
     );
 }
 

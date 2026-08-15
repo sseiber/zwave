@@ -264,6 +264,28 @@ export interface IHealthNoise {
     channels: number[];   // current dBm per channel
 }
 
+// One point in the rolling series behind the health chart
+export interface IHealthSample {
+    at: string;                  // ISO date-time
+    score: number;
+    noise?: number;              // RF noise floor, dBm (absent if the stick doesn't report it)
+    errorRate: number;           // share of controller messages that failed, 0-1
+    messagesPerMinute: number;
+    responseMs?: number;         // average round-trip time across measured devices
+}
+
+// The background sweep: which device the service is measuring, or measured last. This
+// is what makes the health view visibly live between user actions.
+export interface IHealthSweep {
+    nodeId: number;
+    name: string;
+    // True while the ping is in flight
+    active: boolean;
+    at: string;                  // ISO date-time the last sweep completed
+    ok: boolean;
+    rtt?: number;                // ms, measured around the ping
+}
+
 export interface INetworkHealth {
     score: number;        // 0 (worst) - 100 (best)
     state: HealthState;
@@ -271,8 +293,10 @@ export interface INetworkHealth {
     headline: string;
     // What is holding the score down, worst first; empty when everything is fine
     factors: IHealthFactor[];
-    // Recent composite scores, oldest first, one per sample — the shape of the trend
-    trend: number[];
+    // Rolling series behind the chart, oldest first (~2 hours at the sampling interval)
+    samples: IHealthSample[];
+    // The device the sweep is measuring, or measured most recently
+    sweep?: IHealthSweep;
     sampledAt: string;
     devices: {
         total: number;

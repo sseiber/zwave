@@ -56,6 +56,67 @@
       ],
       "type": "object"
     },
+    "IHealthSample": {
+      "additionalProperties": false,
+      "properties": {
+        "at": {
+          "type": "string"
+        },
+        "errorRate": {
+          "type": "number"
+        },
+        "messagesPerMinute": {
+          "type": "number"
+        },
+        "noise": {
+          "type": "number"
+        },
+        "responseMs": {
+          "type": "number"
+        },
+        "score": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "at",
+        "score",
+        "errorRate",
+        "messagesPerMinute"
+      ],
+      "type": "object"
+    },
+    "IHealthSweep": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "at": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "number"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "rtt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "nodeId",
+        "name",
+        "active",
+        "at",
+        "ok"
+      ],
+      "type": "object"
+    },
     "IHealthTraffic": {
       "additionalProperties": false,
       "properties": {
@@ -120,20 +181,23 @@
         "sampledAt": {
           "type": "string"
         },
+        "samples": {
+          "items": {
+            "$ref": "#/definitions/IHealthSample"
+          },
+          "type": "array"
+        },
         "score": {
           "type": "number"
         },
         "state": {
           "$ref": "#/definitions/HealthState"
         },
+        "sweep": {
+          "$ref": "#/definitions/IHealthSweep"
+        },
         "traffic": {
           "$ref": "#/definitions/IHealthTraffic"
-        },
-        "trend": {
-          "items": {
-            "type": "number"
-          },
-          "type": "array"
         }
       },
       "required": [
@@ -141,7 +205,7 @@
         "state",
         "headline",
         "factors",
-        "trend",
+        "samples",
         "sampledAt",
         "devices",
         "traffic",
