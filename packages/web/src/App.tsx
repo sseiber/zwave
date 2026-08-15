@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { ReactElement } from 'react';
 import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import type { RunFn } from './types.ts';
 import { api } from './api.ts';
@@ -10,12 +11,53 @@ import { ScenesPanel } from './panels/ScenesPanel.tsx';
 
 type Tab = 'dashboard' | 'devices' | 'rooms' | 'scenes';
 
-const TABS: { id: Tab; label: string }[] = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'devices', label: 'Devices' },
-    { id: 'rooms', label: 'Rooms' },
-    { id: 'scenes', label: 'Scenes' }
+// Bottom navigation. The Dashboard is the implicit home — it is the first entry and
+// the view the app opens on; Devices/Rooms/Scenes are destinations reached from the
+// bar rather than tabs stacked above the content.
+const TABS: { id: Tab; label: string; icon: ReactElement }[] = [
+    { id: 'dashboard', label: 'Home', icon: <IconHome /> },
+    { id: 'devices', label: 'Devices', icon: <IconDevices /> },
+    { id: 'rooms', label: 'Rooms', icon: <IconRooms /> },
+    { id: 'scenes', label: 'Scenes', icon: <IconScenes /> }
 ];
+
+// Small line icons, drawn in currentColor so they follow the active/inactive color
+function IconHome() {
+    return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M4 11.2 12 4l8 7.2M6.5 10v9.5h11V10" />
+        </svg>
+    );
+}
+
+function IconDevices() {
+    return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="4.5" y="3.5" width="15" height="17" rx="3" />
+            <circle cx="12" cy="9" r="2.2" />
+            <path d="M9 16.5h6" />
+        </svg>
+    );
+}
+
+function IconRooms() {
+    return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6" />
+            <rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6" />
+            <rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6" />
+            <rect x="13" y="13" width="7.5" height="7.5" rx="1.6" />
+        </svg>
+    );
+}
+
+function IconScenes() {
+    return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M12 3.8l2.1 4.6 4.9.6-3.6 3.4.9 4.9L12 15l-4.3 2.3.9-4.9L5 9l4.9-.6z" />
+        </svg>
+    );
+}
 
 function toMessage(ex: unknown): string {
     return ex instanceof Error ? ex.message : String(ex);
@@ -117,21 +159,6 @@ export function App() {
                 <button onClick={() => { void refreshDevices(); void refreshRooms(); void refreshScenes(); void refreshSceneStatus(); }}>Refresh</button>
             </header>
 
-            <nav className="tabs">
-                {TABS.map(t => (
-                    <button
-                        key={t.id}
-                        className={tab === t.id ? 'tab active' : 'tab'}
-                        onClick={() => setTab(t.id)}
-                    >
-                        {t.label}
-                        {t.id === 'rooms' && rooms.length > 0 && <span className="count">{rooms.length}</span>}
-                        {t.id === 'scenes' && scenes.length > 0 && <span className="count">{scenes.length}</span>}
-                        {t.id === 'devices' && devices.length > 0 && <span className="count">{devices.length}</span>}
-                    </button>
-                ))}
-            </nav>
-
             {error && <div className="banner error" onClick={() => setError(null)}>{error}</div>}
             {status && !error && <div className="banner status" onClick={() => setStatus(null)}>{status}</div>}
 
@@ -144,6 +171,23 @@ export function App() {
                         : tab === 'rooms'
                             ? <RoomsPanel rooms={rooms} devices={devices} run={run} refresh={refreshRooms} />
                             : <ScenesPanel scenes={scenes} statuses={sceneStatus} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} refreshStatus={refreshSceneStatus} />}
+
+            <nav className="bottom-nav">
+                {TABS.map(t => (
+                    <button
+                        key={t.id}
+                        className={tab === t.id ? 'nav-item active' : 'nav-item'}
+                        aria-current={tab === t.id ? 'page' : undefined}
+                        onClick={() => setTab(t.id)}
+                    >
+                        <span className="nav-icon">{t.icon}</span>
+                        <span className="nav-label">{t.label}</span>
+                        {t.id === 'devices' && devices.length > 0 && <span className="nav-count">{devices.length}</span>}
+                        {t.id === 'rooms' && rooms.length > 0 && <span className="nav-count">{rooms.length}</span>}
+                        {t.id === 'scenes' && scenes.length > 0 && <span className="nav-count">{scenes.length}</span>}
+                    </button>
+                ))}
+            </nav>
         </div>
     );
 }

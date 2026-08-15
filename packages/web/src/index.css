@@ -37,7 +37,8 @@ body {
 .app {
     max-width: 720px;
     margin: 0 auto;
-    padding: 1.25rem 1rem 3rem;
+    /* Bottom padding clears the fixed nav bar (and the home indicator on iOS) */
+    padding: 1.25rem 1rem calc(5.5rem + env(safe-area-inset-bottom));
 }
 
 header {
@@ -116,26 +117,65 @@ select, label.check { touch-action: manipulation; }
 
 .muted { color: var(--muted); }
 
-/* Tabs */
-.tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
-.tab {
+/* Bottom navigation — the Dashboard is home, the rest are destinations */
+.bottom-nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: flex;
+    gap: 0.15rem;
+    padding: 0.3rem 0.4rem calc(0.3rem + env(safe-area-inset-bottom));
+    background: var(--card);
+    border-top: 1px solid var(--border);
+}
+.nav-item {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.15rem;
+    min-height: 3.2rem;
+    padding: 0.3rem 0.2rem;
     border: none;
-    border-bottom: 2px solid transparent;
-    border-radius: 6px 6px 0 0;
+    border-radius: 10px;
     background: none;
     color: var(--muted);
-    padding: 0.5rem 0.9rem;
 }
-.tab:hover { color: var(--text); }
-.tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
-.tab .count {
-    margin-left: 0.4rem;
-    font-size: 0.72rem;
+.nav-item:hover { border-color: transparent; }
+.nav-item.active { color: var(--accent); }
+.nav-item .nav-icon svg {
+    width: 1.45rem;
+    height: 1.45rem;
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.nav-item.active .nav-icon svg { stroke-width: 2.1; }
+.nav-label { font-size: 0.7rem; line-height: 1; }
+.nav-count {
+    position: absolute;
+    top: 0.15rem;
+    left: 50%;
+    transform: translateX(0.55rem);
+    font-size: 0.6rem;
+    line-height: 1.5;
+    min-width: 1.1rem;
+    text-align: center;
     background: var(--border);
     color: var(--muted);
     border-radius: 999px;
-    padding: 0.05rem 0.4rem;
+    padding: 0 0.25rem;
 }
+.nav-item.active .nav-count { background: var(--accent); color: #fff; }
+/* The global press styling would flood the whole nav cell with accent */
+.nav-item:active, .nav-item.is-pressed { background: var(--bg); color: var(--accent); }
 
 .panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
 .panel-head h2 { font-size: 1.05rem; margin: 0; }
@@ -481,3 +521,101 @@ button:disabled:hover { border-color: var(--border); }
 .health.r3, .health.r2 { color: var(--on); border-color: var(--on); }
 .health.r1 { color: var(--warn); border-color: var(--warn); }
 .health.r0 { color: #dc2626; border-color: #dc2626; }
+
+/* Mesh health — a dot per device, then only the nodes worth acting on */
+.mesh-dots { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.15rem 0 0.5rem; }
+.mesh-dot {
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 50%;
+    background: var(--border);
+    flex: none;
+}
+.mesh-dot.good { background: var(--on); }
+.mesh-dot.warn { background: var(--warn); }
+.mesh-dot.bad { background: #dc2626; }
+.mesh-dot.unknown { background: transparent; border: 1px solid var(--border); }
+.mesh-summary { font-size: 0.8rem; margin: 0 0 0.5rem; }
+.mesh-flags { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.3rem; }
+.mesh-flag { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; }
+.mesh-flag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mesh-flag-state { font-weight: 600; }
+.mesh-flag-seen { font-size: 0.78rem; }
+.mesh-flag.more { font-size: 0.8rem; }
+.pill.ok { color: var(--on); border-color: var(--on); }
+
+/* Rooms — a tile per room, tapped to toggle the room */
+.room-tiles {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+    gap: 0.5rem;
+}
+.room-tile {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    padding: 0.55rem 0.65rem;
+    min-height: 3.8rem;
+    text-align: left;
+}
+.room-tile.on { border-color: var(--on); }
+.room-tile-name { font-weight: 600; }
+.room-tile-state { display: flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--muted); }
+.room-tile-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; border: 1px solid var(--border); }
+.room-tile-dot.on { background: var(--on); border-color: var(--on); }
+.room-tile:active .room-tile-state,
+.room-tile.is-pressed .room-tile-state { color: inherit; }
+
+/* Schedule — recent runs behind "now", planned runs ahead of it */
+.timeline { position: relative; height: 3.1rem; margin: 0.35rem 0 0.6rem; }
+.timeline-track { position: absolute; top: 1.05rem; left: 0; right: 0; height: 2px; background: var(--border); border-radius: 2px; }
+.timeline-now { position: absolute; top: 0.45rem; width: 2px; height: 1.25rem; margin-left: -1px; background: var(--accent); }
+.timeline-dot {
+    position: absolute;
+    top: 0.78rem;
+    width: 0.58rem;
+    height: 0.58rem;
+    margin-left: -0.29rem;
+    border-radius: 50%;
+    background: var(--muted);
+}
+.timeline-dot.past.failed { background: #dc2626; }
+.timeline-dot.next { background: var(--card); border: 2px solid var(--accent); }
+.timeline-scale {
+    position: absolute;
+    top: 1.95rem;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--muted);
+}
+.timeline-now-label { color: var(--accent); font-weight: 600; }
+.sched-lines { display: grid; gap: 0.25rem; margin: 0; }
+.sched-line { display: flex; align-items: baseline; gap: 0.5rem; }
+.sched-line .k {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    min-width: 2.4rem;
+}
+.sched-line .v { flex: 1; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
+.sched-line .t { margin: 0; font-size: 0.82rem; color: var(--muted); }
+
+/* Mesh maintenance, collapsed by default under the device list */
+.maint {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    padding: 0.4rem 0.7rem;
+    margin-bottom: 0.9rem;
+}
+.maint > summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); padding: 0.25rem 0; }
+.maint-body { padding-top: 0.4rem; }

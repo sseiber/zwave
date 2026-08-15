@@ -84,9 +84,15 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      activated from `pointerup` with a 30px slop. Controls set `touch-action: none` so a
      touch starting on a button/slider can't pan the page. Plain `<button>` elements pick
      all of this up — no per-button wiring.
-   - The SPA opens on a **Dashboard** tab (devices-at-a-glance + total power,
-     mesh-health overview flagging dead/weak nodes, per-room quick on/off, and
-     upcoming/recent scheduled runs), alongside Devices / Rooms / Scenes tabs.
+   - The **Dashboard is the home view**; Devices / Rooms / Scenes are reached from a
+     fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
+   - Dashboard cards are roll-ups, deliberately fixed-height rather than per-device
+     lists: devices-at-a-glance + total power; mesh health as one dot per device plus a
+     count summary and only the flagged (offline/weak) nodes named; one toggle tile per
+     room (tap = all off if any are on, else all on); and a schedule timeline strip with
+     recent runs behind a "now" marker and planned runs ahead of it.
+   - Mesh maintenance (route rebuild, device-DB update, re-interview unidentified) lives
+     in `panels/Maintenance.tsx`, collapsed above the device list — not on the Dashboard.
 
 8. **JSON body parser** (`plugins/jsonBodyParser.ts`, named export)
    - Replaces Fastify's default JSON parser so an empty body with
