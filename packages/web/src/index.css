@@ -824,43 +824,95 @@ button:disabled:hover { border-color: var(--border); }
 .action-menu-item:hover { background: var(--bg); border-color: transparent; }
 .action-menu-hint { font-size: 0.74rem; }
 
-/* Network health — a gauge, a state, a sentence; readings behind the disclosure */
+/* Network health — a live chart card: verdict line, sweep pulse, series, devices */
 .dash-card.health { border-left-color: var(--on); }
 .dash-card.health.warn { border-left-color: var(--warn); }
 .dash-card.health.bad { border-left-color: #dc2626; }
 .health-toggle { width: 2.4rem; border-left: none; }
 
-.health-hero { display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0 0.9rem; }
+.health-title { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
+.health-badge {
+    font-size: 1.15rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+.health-badge.good { color: var(--on); }
+.health-badge.warn { color: var(--warn); }
+.health-badge.bad { color: #dc2626; }
+.health-state { font-size: 0.8rem; color: var(--muted); }
+.health-headline { margin: 0.15rem 0 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
 
-/* Score ring: arc length is the score, so the shape reads before the number does */
-.gauge { position: relative; width: 4.75rem; height: 4.75rem; flex: none; }
-.gauge svg { width: 100%; height: 100%; display: block; }
-.gauge circle { fill: none; stroke-width: 7; }
-.gauge .gauge-track { stroke: var(--border); }
-.gauge .gauge-arc { stroke-linecap: round; transition: stroke-dasharray 400ms ease-out; }
-.gauge.good .gauge-arc { stroke: var(--on); }
-.gauge.warn .gauge-arc { stroke: var(--warn); }
-.gauge.bad .gauge-arc { stroke: #dc2626; }
-.gauge-value {
-    position: absolute;
-    inset: 0;
+/* Sweep line — the card's pulse: a device is measured every minute */
+.sweep-line { margin: 0 0 0.55rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem; }
+.sweep-line strong { font-weight: 600; color: var(--text); }
+.sweep-line.active { color: var(--accent); }
+.sweep-pulse, .sweep-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; flex: none; }
+.sweep-dot.ok { background: var(--on); }
+.sweep-dot.bad { background: #dc2626; }
+.sweep-pulse { background: var(--accent); animation: sweep-pulse 1.4s ease-in-out infinite; }
+@keyframes sweep-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.7); }
+}
+@media (prefers-reduced-motion: reduce) { .sweep-pulse { animation: none; } }
+
+/* The chart itself */
+.health-chart { margin: 0 0 0.4rem; }
+.health-chart.empty {
+    height: 6rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
+    font-size: 0.8rem;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
 }
+.health-chart svg {
+    display: block;
+    width: 100%;
+    height: 6rem;
+    /* Fallback first for engines without color-mix (Safari < 16.4) */
+    background: var(--bg);
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
+    border-radius: 8px;
+}
+.chart-grid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-line {
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+.chart-area { stroke: none; }
+.chart-area.noise {
+    fill: rgb(59 130 246 / 26%);
+    fill: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+.chart-line.noise { stroke: var(--accent); }
+.chart-line.errors { stroke: #f59e0b; }
+.chart-line.response { stroke: #a855f7; }
+.chart-axis { display: flex; justify-content: space-between; font-size: 0.68rem; padding: 0.25rem 0.1rem 0; }
 
-.health-verdict { min-width: 0; display: grid; gap: 0.2rem; }
-.health-state { font-size: 1.05rem; font-weight: 600; line-height: 1.2; }
-.health.good .health-state { color: var(--on); }
-.health.warn .health-state { color: var(--warn); }
-.health.bad .health-state { color: #dc2626; }
-.health-headline { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
+.chart-legend {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 0.6rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.9rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+}
+.chart-legend li { display: flex; align-items: center; gap: 0.35rem; }
+.chart-legend strong { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.chart-legend .swatch { width: 0.7rem; height: 0.2rem; border-radius: 2px; flex: none; }
+.chart-legend .noise .swatch { background: var(--accent); }
+.chart-legend .errors .swatch { background: #f59e0b; }
+.chart-legend .response .swatch { background: #a855f7; }
 
-/* Device strip: healthy devices stay quiet so problems are what catch the eye */
-.device-strip { padding-top: 0.15rem; }
+/* Device strip: healthy devices stay quiet so problems catch the eye */
 .device-strip .mesh-dots { gap: 0.34rem; margin: 0; }
 .device-strip .mesh-dot.good { background: var(--on); opacity: 0.38; }
 .device-strip .mesh-dot.warn { background: var(--warn); }
@@ -889,16 +941,3 @@ button:disabled:hover { border-color: var(--border); }
 .reading { display: grid; gap: 0.1rem; }
 .reading dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .reading dd { margin: 0; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
-
-.trend {
-    width: 100%;
-    height: 1.9rem;
-    fill: none;
-    stroke-width: 2;
-    stroke-linejoin: round;
-    stroke-linecap: round;
-}
-.trend polyline { vector-effect: non-scaling-stroke; }
-.trend.good { stroke: var(--on); }
-.trend.warn { stroke: var(--warn); }
-.trend.bad { stroke: #dc2626; }

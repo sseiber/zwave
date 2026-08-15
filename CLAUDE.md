@@ -78,9 +78,12 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - The scoring (`computeHealth`, `nodeHealthState`, `trafficErrorRate`,
      `nodeDropRate`) is exported and pure, so it can be exercised without a live driver
    - A background **sweep** pings the least-recently-measured mains-powered device every
-     3 min (never sleeping/battery ones), so idle devices still produce readings —
+     60s (never sleeping/battery ones), so idle devices still produce readings —
      passive stats alone leave most nodes unmeasured. The ping updates `lastSeen`, so
      the rotation needs no cursor
+   - Keeps a rolling `samples` series (~2h) of score/noise/errorRate/messagesPerMinute/
+     responseMs for the chart, and publishes `sweep` (active + last result) so the UI can
+     show the sweep working around the mesh
    - `state` is only Good when no factor scores ≥10, so the badge can't read "healthy"
      while the headline names a struggling device
 
@@ -112,9 +115,11 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - The **Dashboard is the home view**; Devices / Rooms / Scenes are reached from a
      fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
    - Dashboard cards are roll-ups, deliberately fixed-height rather than per-device
-     lists: devices-at-a-glance + total power; a **health** card (score ring + state
-     + one sentence, with the reasons, trend and raw readings behind a disclosure)
-     polling `GET /network/health`; one toggle tile per
+     lists: devices-at-a-glance + total power; a **health** card modelled on a live
+     network monitor: verdict line, a sweep line naming the device being measured right
+     now, and a hand-drawn SVG chart of noise floor / error rate / response time over
+     the retained window (each series scaled to its own range, legend carries the real
+     values), polling `GET /network/health` every 10s; one toggle tile per
      room (tap = all off if any are on, else all on); and a schedule timeline strip with
      recent runs behind a "now" marker and planned runs ahead of it.
    - Mesh maintenance (route rebuild, device-DB update, re-interview unidentified) lives

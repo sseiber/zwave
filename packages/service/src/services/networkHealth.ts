@@ -8,6 +8,8 @@ import {
     DeviceStatus,
     HealthState,
     IHealthFactor,
+    IHealthSample,
+    IHealthSweep,
     INetworkHealth,
     INodeHealth,
     NodeHealthState
@@ -31,13 +33,14 @@ export const ServiceName = 'networkHealth';
 // interval, so it also sets how quickly a problem shows up.
 const SampleIntervalMs = 30 * 1000;
 
-// ~30 minutes of history at the sampling interval above
-const HistorySize = 60;
+// ~2 hours of history at the sampling interval above — enough for the chart to show a
+// shape without the payload growing large (each point is five small numbers).
+const HistorySize = 240;
 
-// The sweep pings one device at a time on rotation. With a couple of dozen devices
-// every one is measured within the hour, at a fraction of the traffic a full
-// health-check of the network would generate.
-const SweepIntervalMs = 3 * 60 * 1000;
+// The sweep pings one device at a time on rotation: a couple of dozen devices are all
+// measured within half an hour, at one ping a minute. That is a negligible amount of
+// traffic, and it is what keeps the readings (and the view) moving.
+const SweepIntervalMs = 60 * 1000;
 
 // Thresholds behind the verdict. Chosen to be quiet when things are fine: a mesh in
 // good shape should sit at 100 and stay there.
@@ -68,8 +71,8 @@ const FairScore = 60;
 
 interface Sample {
     at: number;
-    score: number;
     telemetry: INetworkTelemetry;
+    point: IHealthSample;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -181,6 +184,17 @@ function isStale(node: INodeTelemetry, now: number): boolean {
     return now - new Date(node.lastSeen).getTime() > Thresholds.staleHours * 60 * 60 * 1000;
 }
 
+// Mean round-trip time across devices that have one, or undefined if none do
+export function averageResponseMs(telemetry: INetworkTelemetry): number | undefined {
+    const times = telemetry.nodes.map(node => node.rtt).filter((rtt): rtt is number => typeof rtt === 'number');
+
+    if (times.length === 0) {
+        return undefined;
+    }
+
+    return Math.round(times.reduce((total, rtt) => total + rtt, 0) / times.length);
+}
+
 // Epoch ms a device was last heard from; never-measured devices sort first
 function seenAt(node: INodeTelemetry): number {
     return node.lastSeen ? new Date(node.lastSeen).getTime() : 0;
@@ -199,7 +213,9 @@ function percent(value: number): string {
 // Fold everything into a score, the factors that reduced it, and a sentence a person
 // can act on. Penalties are capped per category so one bad device cannot alone declare
 // the whole network broken.
-export function computeHealth(previous: INetworkTelemetry | undefined, current: INetworkTelemetry, intervalMs: number, now: number, trend: number[]): INetworkHealth {
+export type HealthVerdict = Omit<INetworkHealth, 'samples' | 'sweep'>;
+
+export function computeHealth(previous: INetworkTelemetry | undefined, current: INetworkTelemetry, intervalMs: number, now: number): HealthVerdict {
     const factors: IHealthFactor[] = [];
     const traffic = trafficErrorRate(previous, current);
 
@@ -305,7 +321,6 @@ export function computeHealth(previous: INetworkTelemetry | undefined, current: 
         state,
         headline: headlineFor(state, factors, responding, nodes.length, unmeasured.length),
         factors,
-        trend: [...trend, score].slice(-HistorySize),
         sampledAt: new Date(now).toISOString(),
         devices: {
             total: nodes.length,
@@ -392,7 +407,7 @@ function emptyHealth(): INetworkHealth {
         state: HealthState.Good,
         headline: 'Waiting for the first reading',
         factors: [],
-        trend: [],
+        samples: [],
         sampledAt: new Date().toISOString(),
         devices: { total: 0, responding: 0, offline: 0, unmeasured: 0 },
         traffic: { messagesPerMinute: 0, errorRate: 0 },
@@ -405,7 +420,8 @@ class NetworkHealth {
     private timer: NodeJS.Timeout | undefined;
     private sweepTimer: NodeJS.Timeout | undefined;
     private samples: Sample[];
-    private health: INetworkHealth | undefined;
+    private verdict: HealthVerdict | undefined;
+    private sweepState: IHealthSweep | undefined;
 
     constructor(server: FastifyInstance) {
         this.server = server;
@@ -431,14 +447,22 @@ class NetworkHealth {
         }
     }
 
-    // Latest verdict. Sampled on a tick, but computed on demand the first time so the
-    // very first request after startup is not empty.
+    // Latest verdict plus the rolling series and the sweep. Sampled on a tick, but
+    // computed on demand the first time so the first request after startup isn't empty.
     public getHealth(): INetworkHealth {
-        if (!this.health) {
+        if (!this.verdict) {
             this.sample();
         }
 
-        return this.health ?? emptyHealth();
+        if (!this.verdict) {
+            return emptyHealth();
+        }
+
+        return {
+            ...this.verdict,
+            samples: this.samples.map(sample => sample.point),
+            ...(this.sweepState ? { sweep: this.sweepState } : {})
+        };
     }
 
     private sample(): void {
@@ -448,11 +472,20 @@ class NetworkHealth {
             const previous = this.samples.at(-1);
             const interval = previous ? now - previous.at : SampleIntervalMs;
 
-            const health = computeHealth(previous?.telemetry, telemetry, interval, now, this.health?.trend ?? []);
+            const verdict = computeHealth(previous?.telemetry, telemetry, interval, now);
 
-            this.health = health;
+            this.verdict = verdict;
 
-            this.samples.push({ at: now, score: health.score, telemetry });
+            const point: IHealthSample = {
+                at: verdict.sampledAt,
+                score: verdict.score,
+                errorRate: verdict.traffic.errorRate,
+                messagesPerMinute: verdict.traffic.messagesPerMinute,
+                ...(verdict.noise ? { noise: verdict.noise.current } : {}),
+                ...(averageResponseMs(telemetry) !== undefined ? { responseMs: averageResponseMs(telemetry) } : {})
+            };
+
+            this.samples.push({ at: now, telemetry, point });
 
             if (this.samples.length > HistorySize) {
                 this.samples.shift();
@@ -484,9 +517,33 @@ class NetworkHealth {
 
             this.server.log.debug({ tags: [ServiceName] }, `Health sweep pinging device ${target.nodeId} (${target.name})`);
 
-            await this.server.zwaveService.pingNode(target.nodeId);
+            // Published while the ping is in flight, so the UI can show the sweep
+            // working its way around the mesh rather than looking frozen
+            this.sweepState = {
+                nodeId: target.nodeId,
+                name: target.name,
+                active: true,
+                at: new Date().toISOString(),
+                ok: false
+            };
+
+            const startedAt = Date.now();
+            const ok = await this.server.zwaveService.pingNode(target.nodeId);
+
+            this.sweepState = {
+                nodeId: target.nodeId,
+                name: target.name,
+                active: false,
+                at: new Date().toISOString(),
+                ok,
+                ...(ok ? { rtt: Date.now() - startedAt } : {})
+            };
         }
         catch (ex) {
+            if (this.sweepState?.active) {
+                this.sweepState = { ...this.sweepState, active: false, at: new Date().toISOString(), ok: false };
+            }
+
             this.server.log.debug({ tags: [ServiceName] }, `Health sweep skipped: ${exMessage(ex)}`);
         }
     }

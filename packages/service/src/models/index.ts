@@ -27,6 +27,8 @@ export {
     IHealthTraffic,
     IHealthNoise,
     INetworkHealth,
+    IHealthSample,
+    IHealthSweep,
     IRoom,
     IRoomParams,
     ICreateRoomRequest,
