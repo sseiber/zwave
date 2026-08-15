@@ -86,10 +86,11 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'on
 //
 // Network health
 //
-// One composite verdict rather than a wall of readings: the service folds controller
-// traffic, per-device reliability, latency, signal and the RF noise floor into a score
-// and a plain sentence, and this shows that — with the score's recent movement, the
-// reasons behind it, and a dot per device so the whole mesh is still visible at once.
+// The service folds controller traffic, per-device reliability, latency, signal and the
+// RF noise floor into one score. The card shows that as a gauge, a state word and a
+// single sentence — three things, one size each. Everything that supports the verdict
+// (the reasons, the trend, the raw readings) sits behind the disclosure, so the resting
+// state of the card is calm and the numbers are one tap away when they matter.
 //
 
 // Health is sampled service-side every 30s; polling faster only re-fetches the same
@@ -99,6 +100,7 @@ const HealthPollMs = 15000;
 function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
     const [health, setHealth] = useState<INetworkHealth | null>(null);
     const [failed, setFailed] = useState(false);
+    const [open, setOpen] = useState(false);
 
     useEffect(() => {
         let alive = true;
@@ -136,73 +138,136 @@ function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
     }
 
     const tone = health.state === HealthState.Good ? 'good' : health.state === HealthState.Fair ? 'warn' : 'bad';
+    const problems = health.nodes.filter(node => node.state === NodeHealthState.Offline || node.state === NodeHealthState.Poor);
 
     return (
         <div className={`card dash-card health ${tone}`}>
             <div className="dash-card-head">
                 <h3>Health</h3>
-                <span className="muted health-sampled" title={absoluteTime(health.sampledAt)}>
-                    {relativeTime(health.sampledAt)}
-                </span>
+                <button
+                    className="scene-details-toggle health-toggle"
+                    onClick={() => setOpen(current => !current)}
+                    aria-expanded={open}
+                    aria-label={open ? 'Hide health details' : 'Show health details'}
+                    title="Details"
+                >
+                    <span className={`chevron${open ? ' open' : ''}`} aria-hidden="true" />
+                </button>
             </div>
 
-            <div className="health-top">
-                <div className="health-score">
-                    <span className="health-score-value">{health.score}</span>
-                    <span className="health-score-label">{stateLabel(health.state)}</span>
+            {/* The verdict: gauge, state, one sentence. Nothing else at this level. */}
+            <div className="health-hero">
+                <Gauge score={health.score} tone={tone} />
+                <div className="health-verdict">
+                    <span className="health-state">{stateLabel(health.state)}</span>
+                    <p className="health-headline">{health.headline}</p>
                 </div>
-                <Trend values={health.trend} tone={tone} />
             </div>
 
-            <p className="health-headline">{health.headline}</p>
+            <DeviceStrip nodes={health.nodes} problems={problems.length} />
 
-            {health.factors.length > 0 && (
-                <ul className="health-factors">
-                    {health.factors.slice(0, 3).map(factor => (
-                        <li key={factor.label}>
-                            <span className="health-factor-label">{factor.label}</span>
-                            {factor.detail && <span className="muted health-factor-detail">{factor.detail}</span>}
-                        </li>
-                    ))}
-                </ul>
-            )}
+            {open && (
+                <div className="health-details">
+                    {health.factors.length > 0 && (
+                        <ul className="health-factors">
+                            {health.factors.slice(0, 3).map(factor => (
+                                <li key={factor.label}>
+                                    <span className="health-factor-label">{factor.label}</span>
+                                    {factor.detail && <span className="muted health-factor-detail">{factor.detail}</span>}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
 
-            {health.nodes.length > 0 && (
-                <div className="mesh-dots" role="img" aria-label={`${health.devices.responding} of ${health.devices.total} devices responding`}>
-                    {[...health.nodes]
-                        .sort((a, b) => nodeRank(a.state) - nodeRank(b.state))
-                        .map(node => (
-                            <span
-                                key={node.nodeId}
-                                className={`mesh-dot ${nodeTone(node.state)}`}
-                                title={`${node.name} — ${nodeSummary(node)}`}
-                            />
-                        ))}
+                    <Trend values={health.trend} tone={tone} />
+
+                    <dl className="health-readings">
+                        <Reading label="Responding" value={`${health.devices.responding}/${health.devices.total}`} />
+                        {health.devices.unmeasured > 0 && <Reading label="Unmeasured" value={String(health.devices.unmeasured)} />}
+                        <Reading label="Traffic" value={`${health.traffic.messagesPerMinute}/min`} />
+                        <Reading label="Errors" value={`${Math.round(health.traffic.errorRate * 100)}%`} />
+                        {health.noise && <Reading label="Noise floor" value={`${health.noise.current} dBm`} />}
+                        <Reading label="Updated" value={relativeTime(health.sampledAt)} title={absoluteTime(health.sampledAt)} />
+                    </dl>
+
+                    <button className="link-btn" onClick={() => onNavigate('devices')}>Open devices →</button>
                 </div>
             )}
-
-            <p className="health-stats muted">
-                {health.devices.responding}/{health.devices.total} responding
-                {health.devices.unmeasured > 0 && ` · ${health.devices.unmeasured} unmeasured`}
-                {` · ${health.traffic.messagesPerMinute}/min`}
-                {health.traffic.errorRate > 0 && ` · ${Math.round(health.traffic.errorRate * 100)}% errors`}
-                {health.noise && ` · noise ${health.noise.current} dBm`}
-                {' · '}
-                <button className="link-btn" onClick={() => onNavigate('devices')}>Devices →</button>
-            </p>
         </div>
     );
 }
 
-// The score's recent movement as a sparkline. Flat is the healthy case, so the shape
-// only draws attention once something actually changes.
+// The score as a ring. The arc length is the score, so "how healthy" reads before any
+// number does — and a full ring is the resting state of a well-behaved mesh.
+function Gauge({ score, tone }: { score: number; tone: string }) {
+    const radius = 34;
+    const circumference = 2 * Math.PI * radius;
+    const arc = (Math.max(0, Math.min(100, score)) / 100) * circumference;
+
+    return (
+        <div className={`gauge ${tone}`}>
+            <svg viewBox="0 0 80 80" aria-hidden="true">
+                <circle className="gauge-track" cx="40" cy="40" r={radius} />
+                <circle
+                    className="gauge-arc"
+                    cx="40"
+                    cy="40"
+                    r={radius}
+                    strokeDasharray={`${round2(arc)} ${round2(circumference - arc)}`}
+                    transform="rotate(-90 40 40)"
+                />
+            </svg>
+            <span className="gauge-value">{score}</span>
+        </div>
+    );
+}
+
+// One dot per device, worst first. Healthy devices stay quiet so the eye is caught by
+// the exceptions rather than by a wall of green.
+function DeviceStrip({ nodes, problems }: { nodes: INodeHealth[]; problems: number }) {
+    if (nodes.length === 0) {
+        return null;
+    }
+
+    const label = problems > 0
+        ? `${problems} device${problems === 1 ? '' : 's'} need attention`
+        : `${nodes.length} devices`;
+
+    return (
+        <div className="device-strip">
+            <div className="mesh-dots" role="img" aria-label={label}>
+                {[...nodes]
+                    .sort((a, b) => nodeRank(a.state) - nodeRank(b.state))
+                    .map(node => (
+                        <span
+                            key={node.nodeId}
+                            className={`mesh-dot ${nodeTone(node.state)}`}
+                            title={`${node.name} — ${nodeSummary(node)}`}
+                        />
+                    ))}
+            </div>
+        </div>
+    );
+}
+
+function Reading({ label, value, title }: { label: string; value: string; title?: string }) {
+    return (
+        <div className="reading" title={title}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+        </div>
+    );
+}
+
+// The score's recent movement. Only shown in the details, since a healthy mesh draws a
+// flat line that says nothing at a glance.
 function Trend({ values, tone }: { values: number[]; tone: string }) {
     if (values.length < 2) {
         return null;
     }
 
     const width = 100;
-    const height = 28;
+    const height = 24;
 
     // Anchor the scale to a fixed band, so a mesh sitting at 100 draws a flat line at
     // the top rather than having its noise amplified to fill the box
@@ -230,11 +295,11 @@ function round2(value: number): number {
 function stateLabel(state: HealthState): string {
     switch (state) {
         case HealthState.Good:
-            return 'healthy';
+            return 'Healthy';
         case HealthState.Fair:
-            return 'needs a look';
+            return 'Needs a look';
         default:
-            return 'degraded';
+            return 'Degraded';
     }
 }
 
@@ -252,7 +317,7 @@ function nodeTone(state: NodeHealthState): string {
     }
 }
 
-// Worst first, so the dot grid reads left-to-right as problems then healthy devices
+// Worst first, so the strip reads left-to-right as problems then healthy devices
 function nodeRank(state: NodeHealthState): number {
     switch (state) {
         case NodeHealthState.Offline:

@@ -512,7 +512,7 @@ button:disabled:hover { border-color: var(--border); }
 .health.r1 { color: var(--warn); border-color: var(--warn); }
 .health.r0 { color: #dc2626; border-color: #dc2626; }
 
-/* Mesh health — a dot per device, then only the nodes worth acting on */
+/* Device dots, shared by the health card's device strip */
 .mesh-dots { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.15rem 0 0.5rem; }
 .mesh-dot {
     width: 0.7rem;
@@ -525,14 +525,6 @@ button:disabled:hover { border-color: var(--border); }
 .mesh-dot.warn { background: var(--warn); }
 .mesh-dot.bad { background: #dc2626; }
 .mesh-dot.unknown { background: transparent; border: 1px solid var(--border); }
-.mesh-summary { font-size: 0.8rem; margin: 0 0 0.5rem; }
-.mesh-flags { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.3rem; }
-.mesh-flag { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; }
-.mesh-flag-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mesh-flag-state { font-weight: 600; }
-.mesh-flag-seen { font-size: 0.78rem; }
-.mesh-flag.more { font-size: 0.8rem; }
-.pill.ok { color: var(--on); border-color: var(--on); }
 
 /* Rooms — a tile per room, tapped to toggle the room */
 .room-tiles {
@@ -832,35 +824,81 @@ button:disabled:hover { border-color: var(--border); }
 .action-menu-item:hover { background: var(--bg); border-color: transparent; }
 .action-menu-hint { font-size: 0.74rem; }
 
-/* Network health — one composite verdict, with the readings behind it */
+/* Network health — a gauge, a state, a sentence; readings behind the disclosure */
 .dash-card.health { border-left-color: var(--on); }
 .dash-card.health.warn { border-left-color: var(--warn); }
 .dash-card.health.bad { border-left-color: #dc2626; }
-.health-sampled { font-size: 0.72rem; }
-.health-top { display: flex; align-items: center; gap: 0.9rem; margin: 0.1rem 0 0.4rem; }
-.health-score { display: flex; align-items: baseline; gap: 0.4rem; }
-.health-score-value { font-size: 2.1rem; font-weight: 700; line-height: 1; }
-.health.good .health-score-value { color: var(--on); }
-.health.warn .health-score-value { color: var(--warn); }
-.health.bad .health-score-value { color: #dc2626; }
-.health-score-label { font-size: 0.78rem; color: var(--muted); }
+.health-toggle { width: 2.4rem; border-left: none; }
+
+.health-hero { display: flex; align-items: center; gap: 1rem; margin: 0.5rem 0 0.9rem; }
+
+/* Score ring: arc length is the score, so the shape reads before the number does */
+.gauge { position: relative; width: 4.75rem; height: 4.75rem; flex: none; }
+.gauge svg { width: 100%; height: 100%; display: block; }
+.gauge circle { fill: none; stroke-width: 7; }
+.gauge .gauge-track { stroke: var(--border); }
+.gauge .gauge-arc { stroke-linecap: round; transition: stroke-dasharray 400ms ease-out; }
+.gauge.good .gauge-arc { stroke: var(--on); }
+.gauge.warn .gauge-arc { stroke: var(--warn); }
+.gauge.bad .gauge-arc { stroke: #dc2626; }
+.gauge-value {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.health-verdict { min-width: 0; display: grid; gap: 0.2rem; }
+.health-state { font-size: 1.05rem; font-weight: 600; line-height: 1.2; }
+.health.good .health-state { color: var(--on); }
+.health.warn .health-state { color: var(--warn); }
+.health.bad .health-state { color: #dc2626; }
+.health-headline { margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
+
+/* Device strip: healthy devices stay quiet so problems are what catch the eye */
+.device-strip { padding-top: 0.15rem; }
+.device-strip .mesh-dots { gap: 0.34rem; margin: 0; }
+.device-strip .mesh-dot.good { background: var(--on); opacity: 0.38; }
+.device-strip .mesh-dot.warn { background: var(--warn); }
+.device-strip .mesh-dot.bad { background: #dc2626; }
+
+.health-details {
+    margin-top: 0.9rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+    display: grid;
+    gap: 0.8rem;
+    justify-items: start;
+}
+.health-factors { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.55rem; width: 100%; }
+.health-factors li { display: grid; gap: 0.15rem; }
+.health-factor-label { font-size: 0.85rem; font-weight: 600; line-height: 1.4; }
+.health-factor-detail { font-size: 0.8rem; line-height: 1.5; }
+
+.health-readings {
+    width: 100%;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+    gap: 0.65rem 1rem;
+}
+.reading { display: grid; gap: 0.1rem; }
+.reading dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.reading dd { margin: 0; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+
 .trend {
-    flex: 1;
-    height: 2rem;
-    min-width: 0;
+    width: 100%;
+    height: 1.9rem;
     fill: none;
     stroke-width: 2;
     stroke-linejoin: round;
     stroke-linecap: round;
-    vector-effect: non-scaling-stroke;
 }
 .trend polyline { vector-effect: non-scaling-stroke; }
 .trend.good { stroke: var(--on); }
 .trend.warn { stroke: var(--warn); }
 .trend.bad { stroke: #dc2626; }
-.health-headline { margin: 0 0 0.45rem; font-size: 0.92rem; }
-.health-factors { list-style: none; padding: 0; margin: 0 0 0.55rem; display: grid; gap: 0.3rem; }
-.health-factors li { display: grid; gap: 0.05rem; font-size: 0.85rem; }
-.health-factor-label { font-weight: 600; }
-.health-factor-detail { font-size: 0.78rem; }
-.health-stats { font-size: 0.78rem; margin: 0.1rem 0 0; }
