@@ -1,0 +1,55 @@
+{
+  "$id": "INodeHealth",
+  "$ref": "#/definitions/INodeHealth",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "INodeHealth": {
+      "additionalProperties": false,
+      "properties": {
+        "dataRate": {
+          "type": "number"
+        },
+        "dropRate": {
+          "type": "number"
+        },
+        "hops": {
+          "type": "number"
+        },
+        "lastSeen": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "nodeId": {
+          "type": "number"
+        },
+        "rssi": {
+          "type": "number"
+        },
+        "rtt": {
+          "type": "number"
+        },
+        "state": {
+          "$ref": "#/definitions/NodeHealthState"
+        }
+      },
+      "required": [
+        "nodeId",
+        "name",
+        "state"
+      ],
+      "type": "object"
+    },
+    "NodeHealthState": {
+      "enum": [
+        "good",
+        "fair",
+        "poor",
+        "offline",
+        "unknown"
+      ],
+      "type": "string"
+    }
+  }
+}

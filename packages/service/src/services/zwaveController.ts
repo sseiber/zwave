@@ -55,6 +55,69 @@ interface IConfigMetadata {
     isAdvanced?: boolean;
 }
 
+// Raw telemetry for one node, as the driver has accumulated it. Deliberately flat and
+// driver-shaped: the health service turns this into a verdict, this just reports.
+export interface INodeTelemetry {
+    nodeId: number;
+    name: string;
+    status: DeviceStatus;
+    // Battery devices sleep, so silence from them is normal and must not count against
+    // the network's health (nor should the sweep wake them)
+    canSleep: boolean;
+    commandsTX: number;
+    commandsRX: number;
+    commandsDroppedTX: number;
+    commandsDroppedRX: number;
+    timeoutResponse: number;
+    rtt?: number;
+    rssi?: number;
+    hops?: number;
+    dataRate?: number;
+    lastSeen?: string;
+}
+
+export interface IControllerTelemetry {
+    messagesTX: number;
+    messagesRX: number;
+    messagesDroppedRX: number;
+    messagesDroppedTX: number;
+    NAK: number;
+    CAN: number;
+    timeoutACK: number;
+    timeoutResponse: number;
+    timeoutCallback: number;
+    // Ambient RF noise per channel; `current` far above `average` means interference
+    noise?: {
+        channels: { current: number; average: number }[];
+    };
+}
+
+export interface INetworkTelemetry {
+    controller: IControllerTelemetry;
+    nodes: INodeTelemetry[];
+}
+
+// Map zwave-js's ProtocolDataRate enum to kbps. Anything below 100k on a mains-powered
+// device usually means it fell back to a slower, less reliable route.
+function dataRateKbps(rate: number | undefined): number | undefined {
+    switch (rate) {
+        case 1:
+            return 9.6;
+        case 2:
+            return 40;
+        case 3:
+        case 4:
+            return 100;
+        default:
+            return undefined;
+    }
+}
+
+// Real RSSI values are negative dBm; 125-127 are error/"not available" sentinels
+function usableRssi(rssi: number | undefined): number | undefined {
+    return typeof rssi === 'number' && rssi < 0 ? rssi : undefined;
+}
+
 // Format a raw Manufacturer Specific CC id as 4-digit hex (e.g. 0x0063), or undefined.
 export function toHexId(id: number | undefined): string | undefined {
     return typeof id === 'number' ? `0x${id.toString(16).padStart(4, '0')}` : undefined;
@@ -588,6 +651,90 @@ export class ZWaveController {
         this.server.log.info({ tags: [ControllerName] }, `Installing device-config database update`);
 
         return this.driver.installConfigUpdate();
+    }
+
+    //
+    // Telemetry for the health service
+    //
+    public getNetworkTelemetry(): INetworkTelemetry {
+        this.assertReady();
+
+        const stats = this.driver.controller.statistics;
+        const background = stats.backgroundRSSI;
+
+        const channels = [background?.channel0, background?.channel1, background?.channel2, background?.channel3]
+            .filter((channel): channel is { average: number; current: number } => channel !== undefined)
+            .map(channel => ({ current: channel.current, average: channel.average }))
+            .filter(channel => channel.current < 0);
+
+        const controller: IControllerTelemetry = {
+            messagesTX: stats.messagesTX,
+            messagesRX: stats.messagesRX,
+            messagesDroppedRX: stats.messagesDroppedRX,
+            messagesDroppedTX: stats.messagesDroppedTX,
+            NAK: stats.NAK,
+            CAN: stats.CAN,
+            timeoutACK: stats.timeoutACK,
+            timeoutResponse: stats.timeoutResponse,
+            timeoutCallback: stats.timeoutCallback,
+            ...(channels.length > 0 ? { noise: { channels } } : {})
+        };
+
+        const nodes = [...this.driver.controller.nodes.values()]
+            // The controller itself is node 1 and has no link to measure
+            .filter(node => node.id !== this.driver.controller.ownNodeId)
+            .map(node => this.describeTelemetry(node));
+
+        return { controller, nodes };
+    }
+
+    // Ping a node to refresh its statistics. Used by the health sweep so idle devices
+    // still produce readings; zwave-js updates rtt/rssi/lastSeen as a side effect.
+    public async pingNode(nodeId: number): Promise<boolean> {
+        this.assertReady();
+
+        return this.getNode(nodeId).ping();
+    }
+
+    private describeTelemetry(node: ZWaveNode): INodeTelemetry {
+        const stats = node.statistics;
+
+        const telemetry: INodeTelemetry = {
+            nodeId: node.id,
+            // An unnamed device falls back to "Node <id>" (an empty name is not a name)
+            name: node.name && node.name.length > 0 ? node.name : `Node ${node.id}`,
+            status: this.mapNodeStatus(node.status),
+            canSleep: node.canSleep === true,
+            commandsTX: stats.commandsTX,
+            commandsRX: stats.commandsRX,
+            commandsDroppedTX: stats.commandsDroppedTX,
+            commandsDroppedRX: stats.commandsDroppedRX,
+            timeoutResponse: stats.timeoutResponse
+        };
+
+        if (typeof stats.rtt === 'number') {
+            telemetry.rtt = stats.rtt;
+        }
+
+        const rssi = usableRssi(stats.rssi) ?? usableRssi(stats.lwr?.rssi);
+        if (rssi !== undefined) {
+            telemetry.rssi = rssi;
+        }
+
+        if (stats.lwr?.repeaters) {
+            telemetry.hops = stats.lwr.repeaters.length;
+        }
+
+        const dataRate = dataRateKbps(stats.lwr?.protocolDataRate);
+        if (dataRate !== undefined) {
+            telemetry.dataRate = dataRate;
+        }
+
+        if (stats.lastSeen) {
+            telemetry.lastSeen = new Date(stats.lastSeen).toISOString();
+        }
+
+        return telemetry;
     }
 
     //

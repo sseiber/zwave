@@ -831,3 +831,36 @@ button:disabled:hover { border-color: var(--border); }
 }
 .action-menu-item:hover { background: var(--bg); border-color: transparent; }
 .action-menu-hint { font-size: 0.74rem; }
+
+/* Network health — one composite verdict, with the readings behind it */
+.dash-card.health { border-left-color: var(--on); }
+.dash-card.health.warn { border-left-color: var(--warn); }
+.dash-card.health.bad { border-left-color: #dc2626; }
+.health-sampled { font-size: 0.72rem; }
+.health-top { display: flex; align-items: center; gap: 0.9rem; margin: 0.1rem 0 0.4rem; }
+.health-score { display: flex; align-items: baseline; gap: 0.4rem; }
+.health-score-value { font-size: 2.1rem; font-weight: 700; line-height: 1; }
+.health.good .health-score-value { color: var(--on); }
+.health.warn .health-score-value { color: var(--warn); }
+.health.bad .health-score-value { color: #dc2626; }
+.health-score-label { font-size: 0.78rem; color: var(--muted); }
+.trend {
+    flex: 1;
+    height: 2rem;
+    min-width: 0;
+    fill: none;
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+.trend polyline { vector-effect: non-scaling-stroke; }
+.trend.good { stroke: var(--on); }
+.trend.warn { stroke: var(--warn); }
+.trend.bad { stroke: #dc2626; }
+.health-headline { margin: 0 0 0.45rem; font-size: 0.92rem; }
+.health-factors { list-style: none; padding: 0; margin: 0 0 0.55rem; display: grid; gap: 0.3rem; }
+.health-factors li { display: grid; gap: 0.05rem; font-size: 0.85rem; }
+.health-factor-label { font-weight: 600; }
+.health-factor-detail { font-size: 0.78rem; }
+.health-stats { font-size: 0.78rem; margin: 0.1rem 0 0; }

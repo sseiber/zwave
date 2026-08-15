@@ -153,6 +153,19 @@ fresh, actively-measured `{ rating (0-10), latencyMs, failedPings, numNeighbors,
 | DELETE | `/rooms/:roomId`         | delete                                 |
 | POST   | `/rooms/:roomId/control` | `{ "action", "level"? }` applied to all devices in the room |
 
+### Network health
+
+| Method | Route              | Returns                                                     |
+| ------ | ------------------ | ----------------------------------------------------------- |
+| GET    | `/network/health`  | composite health verdict (`INetworkHealth`)                  |
+
+The service samples controller statistics, per-device reliability/latency/signal and the
+RF noise floor every 30s, and folds them into a single **0-100 score** with a
+plain-language `headline` and ranked `factors` explaining anything holding it down, plus
+a rolling score `trend` and per-device health. A background sweep pings the
+least-recently-measured mains-powered device every 3 minutes so idle devices still
+produce readings.
+
 ### Scenes (a named set of device actions across any devices)
 
 | Method | Route                      | Body                                                                              |

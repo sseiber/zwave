@@ -200,6 +200,93 @@ export interface IInclusionRequest {
 }
 
 //
+// Network health (GET /network/health)
+//
+// A composite view rather than a wall of gauges: the service samples controller
+// statistics, per-node reliability and the RF noise floor on a tick, folds them into a
+// single 0-100 score, and explains that score in plain language. The individual
+// readings are still exposed so the UI can show what drove the verdict.
+//
+
+export enum HealthState {
+    Good = 'good',
+    Fair = 'fair',
+    Poor = 'poor'
+}
+
+export enum NodeHealthState {
+    Good = 'good',
+    Fair = 'fair',
+    Poor = 'poor',
+    // The driver has marked the node dead
+    Offline = 'offline',
+    // Nothing measured yet — no traffic has reached this node since startup
+    Unknown = 'unknown'
+}
+
+// One reason the score is not 100, phrased for a person
+export interface IHealthFactor {
+    // e.g. "Garage overhead is dropping commands"
+    label: string;
+    // Supporting numbers, e.g. "3 of 12 commands failed"
+    detail?: string;
+    // Points this subtracted from the score
+    impact: number;
+    // Device this concerns, when it is about one device
+    nodeId?: number;
+}
+
+// Per-device health, folded from reliability, latency, signal and last-seen
+export interface INodeHealth {
+    nodeId: number;
+    name: string;
+    state: NodeHealthState;
+    // Share of commands to this device that were dropped or timed out (0-1)
+    dropRate?: number;
+    rtt?: number;         // ms, moving average
+    rssi?: number;        // dBm
+    hops?: number;        // repeaters between the controller and the device
+    dataRate?: number;    // kbps of the last working route (9.6 / 40 / 100)
+    lastSeen?: string;    // ISO date-time
+}
+
+// Controller traffic over the most recent sampling interval
+export interface IHealthTraffic {
+    messagesPerMinute: number;
+    // Share of messages that were dropped, NAK'd, collided or timed out (0-1)
+    errorRate: number;
+}
+
+// RF noise floor. `current` well above `average` is the signature of interference.
+export interface IHealthNoise {
+    current: number;      // dBm, strongest (least negative) channel right now
+    average: number;      // dBm, moving average of the same channel
+    channels: number[];   // current dBm per channel
+}
+
+export interface INetworkHealth {
+    score: number;        // 0 (worst) - 100 (best)
+    state: HealthState;
+    // One-sentence plain-language verdict
+    headline: string;
+    // What is holding the score down, worst first; empty when everything is fine
+    factors: IHealthFactor[];
+    // Recent composite scores, oldest first, one per sample — the shape of the trend
+    trend: number[];
+    sampledAt: string;
+    devices: {
+        total: number;
+        responding: number;
+        offline: number;
+        // Devices with no measurements yet
+        unmeasured: number;
+    };
+    traffic: IHealthTraffic;
+    noise?: IHealthNoise;
+    nodes: INodeHealth[];
+}
+
+//
 // Rooms (a named group of devices)
 //
 export interface IRoom {

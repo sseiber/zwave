@@ -70,16 +70,30 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - `schedule.ts` (named exports only) holds `computeNextRun` / `validateSchedule` /
      `getGeoLocation`. Solar times come from `suncalc`. All math is local-time.
 
-5. **Room/Scene Store** (`services/store.ts`)
+5. **Network Health** (`services/networkHealth.ts`)
+   - `fastify-plugin` decorating `server.networkHealth`. Samples driver telemetry every
+     30s into a ring buffer (~30 min) and folds controller traffic, per-device
+     reliability/latency/signal and the RF noise floor into ONE 0-100 score, a
+     `HealthState`, a plain-language `headline` and ranked `factors`
+   - The scoring (`computeHealth`, `nodeHealthState`, `trafficErrorRate`,
+     `nodeDropRate`) is exported and pure, so it can be exercised without a live driver
+   - A background **sweep** pings the least-recently-measured mains-powered device every
+     3 min (never sleeping/battery ones), so idle devices still produce readings —
+     passive stats alone leave most nodes unmeasured. The ping updates `lastSeen`, so
+     the rotation needs no cursor
+   - `state` is only Good when no factor scores ≥10, so the badge can't read "healthy"
+     while the headline names a struggling device
+
+6. **Room/Scene Store** (`services/store.ts`)
    - `fastify-plugin` decorating `server.store`
    - Persists rooms and scenes as JSON in the storage volume (`rooms.json`, `scenes.json`)
    - Atomic writes (temp file + rename)
 
-6. **Configuration** (`plugins/config.ts`)
+7. **Configuration** (`plugins/config.ts`)
    - `env-schema` over `./configs/${NODE_ENV}.env` + `process.env`
    - Ensures the storage directory exists; decorates `server.config`
 
-7. **Web Client serving** (`plugins/webClient.ts`)
+8. **Web Client serving** (`plugins/webClient.ts`)
    - `@fastify/static` serves the built SPA from `webClientRoot` (default `/app/web`)
      at `/`, with a SPA fallback (non-API GETs return `index.html`; `/api/*` stays JSON)
    - Skipped if no `index.html` is found there, so local dev stays API-only while the
@@ -98,8 +112,8 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - The **Dashboard is the home view**; Devices / Rooms / Scenes are reached from a
      fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
    - Dashboard cards are roll-ups, deliberately fixed-height rather than per-device
-     lists: devices-at-a-glance + total power; mesh health as one dot per device plus a
-     count summary and only the flagged (offline/weak) nodes named; one toggle tile per
+     lists: devices-at-a-glance + total power; a **health** card (score + sparkline +
+     headline + why, over a dot per device) polling `GET /network/health`; one toggle tile per
      room (tap = all off if any are on, else all on); and a schedule timeline strip with
      recent runs behind a "now" marker and planned runs ahead of it.
    - Mesh maintenance (route rebuild, device-DB update, re-interview unidentified) lives
@@ -111,7 +125,7 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      each tile *is* the Activate button, showing the name plus one meta line. The device
      list, schedule rules, run times and Edit/Delete sit behind a per-tile details toggle.
 
-8. **JSON body parser** (`plugins/jsonBodyParser.ts`, named export)
+9. **JSON body parser** (`plugins/jsonBodyParser.ts`, named export)
    - Replaces Fastify's default JSON parser so an empty body with
      `content-type: application/json` parses to `{}` instead of erroring. Route schemas
      still decide validity; malformed JSON is still a 400.
@@ -207,6 +221,9 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - `GET /devices` items are capability-gated rich state: on/level/targetLevel, firmwareVersion,
   securityClass, `power` (Meter CC), `link` (passive mesh stats: rssi/hops/rtt/lastSeen), `battery`.
   Read in `zwaveController.describeNode`; the health check calls `node.checkLifelineHealth`.
+- `GET /network/health` → `INetworkHealth` — composite 0-100 score + state + headline +
+  ranked factors + score trend + per-device health, from `server.networkHealth`'s latest
+  sample (a cheap read however often the UI polls).
 - `GET|POST /rooms`, `GET|PUT|DELETE /rooms/:roomId`, `POST /rooms/:roomId/control`
 - `GET|POST /scenes`, `GET|PUT|DELETE /scenes/:sceneId`, `POST /scenes/:sceneId/activate`
   - Scene shape: `{ id, name, roomId?, schedules?: ISchedule[], devices: [{ deviceId, action: on|off|dim, level? }] }`
