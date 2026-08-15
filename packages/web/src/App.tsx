@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import type { RunFn } from './types.ts';
 import { api } from './api.ts';
+import { usePressFeedback } from './press.ts';
 import { DashboardPanel } from './panels/DashboardPanel.tsx';
 import { DevicesPanel } from './panels/DevicesPanel.tsx';
 import { RoomsPanel } from './panels/RoomsPanel.tsx';
@@ -29,6 +30,9 @@ export function App() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState<string | null>(null);
+
+    // Sustained press feedback + touch activation for every button (see press.ts)
+    usePressFeedback();
 
     const refreshDevices = useCallback(async (): Promise<void> => {
         try {

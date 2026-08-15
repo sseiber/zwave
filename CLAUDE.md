@@ -79,6 +79,11 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      at `/`, with a SPA fallback (non-API GETs return `index.html`; `/api/*` stays JSON)
    - Skipped if no `index.html` is found there, so local dev stays API-only while the
      web client runs from the Vite dev server
+   - Touch behavior is centralized in `packages/web/src/press.ts` (installed once from
+     `App`): every button gets an inverted `.is-pressed` state held ~350ms, and taps are
+     activated from `pointerup` with a 30px slop. Controls set `touch-action: none` so a
+     touch starting on a button/slider can't pan the page. Plain `<button>` elements pick
+     all of this up — no per-button wiring.
    - The SPA opens on a **Dashboard** tab (devices-at-a-glance + total power,
      mesh-health overview flagging dead/weak nodes, per-room quick on/off, and
      upcoming/recent scheduled runs), alongside Devices / Rooms / Scenes tabs.
