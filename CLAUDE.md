@@ -48,8 +48,7 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      (`describeConfigParam` + `listConfigParams`/`setConfigParam`), and mesh
      maintenance (re-interview via `node.refreshInfo`; route rebuild via
      `controller.rebuildNodeRoutes`/`beginRebuildingRoutes`)
-   - `wireNodeEvents` currently handles only `ready`/`dead` — the planned
-     switch-triggered-scene work hooks node value-change events here
+   - `wireNodeEvents` handles only `ready`/`dead`
 
 3. **Z-Wave Service** (`services/zwave.ts`)
    - `fastify-plugin` decorating `server.zwaveService`
