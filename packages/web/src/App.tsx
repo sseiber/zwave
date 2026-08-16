@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
-import type { IDeviceInfo, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
+import type { IDeviceInfo, INetworkHealth, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import type { RunFn } from './types.ts';
 import { api } from './api.ts';
 import { usePressFeedback } from './press.ts';
@@ -9,8 +9,9 @@ import { DashboardPanel } from './panels/DashboardPanel.tsx';
 import { DevicesPanel } from './panels/DevicesPanel.tsx';
 import { RoomsPanel } from './panels/RoomsPanel.tsx';
 import { ScenesPanel } from './panels/ScenesPanel.tsx';
+import { HealthPanel } from './panels/HealthPanel.tsx';
 
-type Tab = 'dashboard' | 'devices' | 'rooms' | 'scenes';
+type Tab = 'dashboard' | 'devices' | 'rooms' | 'scenes' | 'health';
 
 // Bottom navigation. The Dashboard is the implicit home — it is the first entry and
 // the view the app opens on; Devices/Rooms/Scenes are destinations reached from the
@@ -19,7 +20,8 @@ const TABS: { id: Tab; label: string; icon: ReactElement }[] = [
     { id: 'dashboard', label: 'Home', icon: <IconHome /> },
     { id: 'devices', label: 'Devices', icon: <IconDevices /> },
     { id: 'rooms', label: 'Rooms', icon: <IconRooms /> },
-    { id: 'scenes', label: 'Scenes', icon: <IconScenes /> }
+    { id: 'scenes', label: 'Scenes', icon: <IconScenes /> },
+    { id: 'health', label: 'Health', icon: <IconHealth /> }
 ];
 
 // Small line icons, drawn in currentColor so they follow the active/inactive color
@@ -52,6 +54,15 @@ function IconRooms() {
     );
 }
 
+// A trace with a beat in it — the mesh's vital signs
+function IconHealth() {
+    return (
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M3 12.5h4l2.5-6 3.5 12 2.5-6h5.5" />
+        </svg>
+    );
+}
+
 function IconScenes() {
     return (
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -70,6 +81,7 @@ export function App() {
     const [rooms, setRooms] = useState<IRoom[]>([]);
     const [scenes, setScenes] = useState<IScene[]>([]);
     const [sceneStatus, setSceneStatus] = useState<ISceneStatus[]>([]);
+    const [health, setHealth] = useState<INetworkHealth | null>(null);
     const [loading, setLoading] = useState(true);
     const [toast, { show, dismiss }] = useToast();
 
@@ -106,6 +118,19 @@ export function App() {
         }
     }, [show]);
 
+    // Health is sampled service-side every 30s and the sweep pings a device every 60s,
+    // so this poll keeps the chart's right edge and the swept dot moving. A failure here
+    // is left silent: the panel shows its own placeholder, and a toast every poll while
+    // the driver restarts would be noise.
+    const refreshHealth = useCallback(async (): Promise<void> => {
+        try {
+            setHealth(await api.getNetworkHealth());
+        }
+        catch {
+            // keep the last verdict on screen
+        }
+    }, []);
+
     const refreshSceneStatus = useCallback(async (): Promise<void> => {
         try {
             setSceneStatus(await api.listSceneStatus());
@@ -121,13 +146,15 @@ export function App() {
         void refreshRooms();
         void refreshScenes();
         void refreshSceneStatus();
+        void refreshHealth();
 
         const id = setInterval(() => {
             void refreshDevices();
             void refreshSceneStatus();
+            void refreshHealth();
         }, 5000);
         return () => clearInterval(id);
-    }, [refreshDevices, refreshRooms, refreshScenes, refreshSceneStatus]);
+    }, [refreshDevices, refreshRooms, refreshScenes, refreshSceneStatus, refreshHealth]);
 
     const run = useCallback<RunFn>(async (fn, successMessage) => {
         try {
@@ -159,12 +186,14 @@ export function App() {
             {loading
                 ? <p className="muted">Loading…</p>
                 : tab === 'dashboard'
-                    ? <DashboardPanel devices={devices} rooms={rooms} scenes={scenes} statuses={sceneStatus} run={run} refresh={refreshDevices} onNavigate={setTab} />
+                    ? <DashboardPanel devices={devices} health={health} rooms={rooms} scenes={scenes} statuses={sceneStatus} run={run} refresh={refreshDevices} onNavigate={setTab} />
                     : tab === 'devices'
                         ? <DevicesPanel devices={devices} run={run} refresh={refreshDevices} />
                         : tab === 'rooms'
                             ? <RoomsPanel rooms={rooms} devices={devices} run={run} refresh={refreshRooms} refreshDevices={refreshDevices} />
-                            : <ScenesPanel scenes={scenes} statuses={sceneStatus} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} refreshStatus={refreshSceneStatus} refreshDevices={refreshDevices} />}
+                            : tab === 'scenes'
+                                ? <ScenesPanel scenes={scenes} statuses={sceneStatus} rooms={rooms} devices={devices} run={run} refresh={refreshScenes} refreshStatus={refreshSceneStatus} refreshDevices={refreshDevices} />
+                                : <HealthPanel health={health} />}
 
             <nav className="bottom-nav">
                 {TABS.map(t => (

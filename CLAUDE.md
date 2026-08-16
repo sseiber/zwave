@@ -117,23 +117,27 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      A persistent *state* notice (inclusion active) is still an inline `.banner`.
    - Each panel header carries a kebab `ActionMenu` (`panels/ActionMenu.tsx`) instead of a
      prominent "New …" button; per-view actions collect there.
-   - The **Dashboard is the home view**; Devices / Rooms / Scenes are reached from a
-     fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
+   - The **Dashboard is the home view**; Devices / Rooms / Scenes / **Health** are
+     reached from a fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
+   - `App` owns the polled state (devices, rooms, scenes, scene status, health) on one
+     5s interval and passes it down; panels don't fetch their own.
    - Dashboard cards are roll-ups, deliberately fixed-height rather than per-device
-     lists: devices-at-a-glance + total power; a **health** card modelled on a live
-     network monitor: verdict line, a sweep line naming the device being measured right
-     now, and a framed, hand-drawn SVG chart of noise
-     floor / error rate / response time over the retained window (each series scaled to
-     its own range, legend carries the real values), polling `GET /network/health` every
-     10s. Expanded, flagged devices are drawn as meters (signal against the usable range
-     with the mesh median marked, route rate as segments, reply rate) rather than
-     described in prose; one toggle tile per
+     lists: devices-at-a-glance + total power; a **health** summary (state + responding
+     count + a link into the Health view); one toggle tile per
      room (tap = all off if any are on, else all on); and a schedule timeline strip with
      recent runs behind a "now" marker and planned runs ahead of it.
    - Mesh maintenance (route rebuild, device-DB update, re-interview unidentified) lives
      in `panels/Maintenance.tsx` as a `useMaintenance` hook: the actions hang off the
      Devices menu, and anything in flight renders in a `MaintenanceStatus` strip under
      the header. These belong in a dedicated settings view eventually.
+   - **Health** is its own view (`panels/HealthPanel.tsx`), built to be glanced at:
+     framed SVG chart (noise floor / errors / response time, each scaled to its own
+     range), then every device as a tappable dot — the one being swept is ringed and
+     pulses while its ping is in flight, tapping one pins its readings — then that
+     device's meters (signal against the usable range with the mesh median marked, route
+     rate as segments, reply rate). All advisory prose (advice, factors, raw readings)
+     is collapsed into a **Notes** disclosure at the bottom, deliberately out of the way.
+     `HealthSummaryCard` is the dashboard's one-line version of the same data.
    - The Scenes view is activation-first: scenes are grouped under their room label
      (`groupScenesByRoom`; `roomId` is only a label, so unlabelled scenes group last) and
      each tile *is* the Activate button, showing the name plus one meta line. The device
