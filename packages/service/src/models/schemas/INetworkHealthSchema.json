@@ -25,6 +25,9 @@
         },
         "nodeId": {
           "type": "number"
+        },
+        "suggestion": {
+          "type": "string"
         }
       },
       "required": [
@@ -136,6 +139,9 @@
     "INetworkHealth": {
       "additionalProperties": false,
       "properties": {
+        "advice": {
+          "type": "string"
+        },
         "devices": {
           "additionalProperties": false,
           "properties": {
@@ -204,6 +210,7 @@
         "score",
         "state",
         "headline",
+        "advice",
         "factors",
         "samples",
         "sampledAt",

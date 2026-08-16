@@ -37,7 +37,7 @@ export function DashboardPanel({ devices, rooms, scenes, statuses, run, refresh,
                     totalWatts={hasPower ? totalWatts : undefined}
                     onNavigate={onNavigate}
                 />
-                <HealthCard onNavigate={onNavigate} />
+                <HealthCard />
                 <RoomsCard rooms={rooms} devices={devices} run={run} refresh={refresh} onNavigate={onNavigate} />
                 <ScheduleCard scenes={scenes} statuses={statuses} devices={devices} onNavigate={onNavigate} />
             </div>
@@ -104,7 +104,7 @@ const NoiseCeilingDbm = -40;
 const ErrorCeiling = 0.2;
 const ResponseCeilingMs = 1000;
 
-function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
+function HealthCard() {
     const [health, setHealth] = useState<INetworkHealth | null>(null);
     const [failed, setFailed] = useState(false);
     const [open, setOpen] = useState(false);
@@ -152,8 +152,10 @@ function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
             <div className="dash-card-head">
                 <div className="health-title">
                     <h3>Health</h3>
-                    <span className={`health-badge ${tone}`}>{health.score}</span>
-                    <span className="health-state">{stateLabel(health.state)}</span>
+                    <span className={`health-state ${tone}`}>
+                        <span className="state-dot" aria-hidden="true" />
+                        {stateLabel(health.state)}
+                    </span>
                 </div>
                 <button
                     className="scene-details-toggle health-toggle"
@@ -167,6 +169,7 @@ function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
             </div>
 
             <p className="health-headline">{health.headline}</p>
+            <p className={`health-advice${health.advice === 'Nothing to do.' ? ' quiet' : ''}`}>{health.advice}</p>
 
             <SweepLine sweep={health.sweep} />
 
@@ -176,29 +179,7 @@ function HealthCard({ onNavigate }: { onNavigate: (tab: 'devices') => void }) {
 
             <DeviceStrip nodes={health.nodes} />
 
-            {open && (
-                <div className="health-details">
-                    {health.factors.length > 0 && (
-                        <ul className="health-factors">
-                            {health.factors.slice(0, 3).map(factor => (
-                                <li key={factor.label}>
-                                    <span className="health-factor-label">{factor.label}</span>
-                                    {factor.detail && <span className="muted health-factor-detail">{factor.detail}</span>}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-
-                    <dl className="health-readings">
-                        <Reading label="Responding" value={`${health.devices.responding}/${health.devices.total}`} />
-                        {health.devices.unmeasured > 0 && <Reading label="Unmeasured" value={String(health.devices.unmeasured)} />}
-                        <Reading label="Traffic" value={`${health.traffic.messagesPerMinute}/min`} />
-                        <Reading label="Updated" value={relativeTime(health.sampledAt)} title={absoluteTime(health.sampledAt)} />
-                    </dl>
-
-                    <button className="link-btn" onClick={() => onNavigate('devices')}>Open devices →</button>
-                </div>
-            )}
+            {open && <HealthDetails health={health} />}
         </div>
     );
 }
@@ -378,6 +359,166 @@ function DeviceStrip({ nodes }: { nodes: INodeHealth[] }) {
     );
 }
 
+
+// Expanded details: the devices behind the verdict, drawn rather than described.
+//
+// "Weak signal (-90 dBm) · 40 kbps route" is a sentence the user has to decode. The
+// same facts as bars — with the mesh's own median marked on the signal scale — answer
+// the question that actually matters: is this device unusual, or is this simply what
+// this mesh looks like?
+
+// Z-Wave receivers work to roughly -95 dBm; -50 is about as good as it gets indoors
+const SignalFloorDbm = -95;
+const SignalCeilingDbm = -50;
+
+// The rates a Z-Wave route can run at
+const RouteRates = [9.6, 40, 100];
+
+function HealthDetails({ health }: { health: INetworkHealth }) {
+    // Devices worth drawing: anything not plainly healthy, worst first
+    const notable = [...health.nodes]
+        .filter(node => node.state !== NodeHealthState.Good && node.state !== NodeHealthState.Unknown)
+        .sort((a, b) => nodeRank(a.state) - nodeRank(b.state))
+        .slice(0, 6);
+
+    const median = medianRssi(health.nodes);
+
+    return (
+        <div className="health-details">
+            {health.factors.length > 0 && (
+                <ul className="health-factors">
+                    {health.factors.slice(0, 3).map(factor => (
+                        <li key={factor.label}>
+                            <span className="health-factor-label">{factor.label}</span>
+                            {factor.suggestion && <span className="muted health-factor-detail">{factor.suggestion}</span>}
+                        </li>
+                    ))}
+                </ul>
+            )}
+
+            {notable.length > 0 && (
+                <ul className="device-meters">
+                    {notable.map(node => <DeviceMeter key={node.nodeId} node={node} median={median} />)}
+                </ul>
+            )}
+
+            <dl className="health-readings">
+                <Reading label="Responding" value={`${health.devices.responding}/${health.devices.total}`} />
+                {health.devices.unmeasured > 0 && <Reading label="Unmeasured" value={String(health.devices.unmeasured)} />}
+                <Reading label="Traffic" value={`${health.traffic.messagesPerMinute}/min`} />
+                <Reading label="Updated" value={relativeTime(health.sampledAt)} title={absoluteTime(health.sampledAt)} />
+            </dl>
+        </div>
+    );
+}
+
+// One device, as meters: signal against the usable range (with the mesh median marked),
+// route speed as three segments, and how many commands it answers.
+function DeviceMeter({ node, median }: { node: INodeHealth; median: number | undefined }) {
+    const tone = nodeTone(node.state);
+    const replies = node.dropRate === undefined ? undefined : 1 - node.dropRate;
+
+    return (
+        <li className={`device-meter ${tone}`}>
+            <div className="device-meter-head">
+                <DeviceIcon offline={node.state === NodeHealthState.Offline} />
+                <span className="device-meter-name">{node.name}</span>
+                {node.hops !== undefined && (
+                    <span className="muted device-meter-hops">{node.hops === 0 ? 'direct' : `${node.hops} hop${node.hops === 1 ? '' : 's'}`}</span>
+                )}
+            </div>
+
+            {node.rssi !== undefined && (
+                <Meter
+                    label="Signal"
+                    value={`${node.rssi} dBm`}
+                    fill={clamp01((node.rssi - SignalFloorDbm) / (SignalCeilingDbm - SignalFloorDbm))}
+                    tone={tone}
+                    marker={median === undefined ? undefined : clamp01((median - SignalFloorDbm) / (SignalCeilingDbm - SignalFloorDbm))}
+                    markerLabel={median === undefined ? undefined : `Typical for this mesh: ${median} dBm`}
+                />
+            )}
+
+            {node.dataRate !== undefined && (
+                <div className="meter-row">
+                    <span className="meter-label">Route</span>
+                    <span className="segments" role="img" aria-label={`${node.dataRate} kbps`}>
+                        {RouteRates.map(rate => (
+                            <span
+                                key={rate}
+                                className={`segment${(node.dataRate ?? 0) >= rate ? ` on ${tone}` : ''}`}
+                            />
+                        ))}
+                    </span>
+                    <span className="meter-value">{node.dataRate} kbps</span>
+                </div>
+            )}
+
+            {replies !== undefined && (
+                <Meter
+                    label="Replies"
+                    value={`${Math.round(replies * 100)}%`}
+                    fill={clamp01(replies)}
+                    tone={replies > 0.95 ? 'good' : tone}
+                />
+            )}
+        </li>
+    );
+}
+
+interface MeterProps {
+    label: string;
+    value: string;
+    fill: number;
+    tone: string;
+    // Position (0-1) of a comparison mark on the same scale
+    marker?: number;
+    markerLabel?: string;
+}
+
+function Meter({ label, value, fill, tone, marker, markerLabel }: MeterProps) {
+    return (
+        <div className="meter-row">
+            <span className="meter-label">{label}</span>
+            <span className="meter-track">
+                <span className={`meter-fill ${tone}`} style={{ width: `${Math.round(fill * 100)}%` }} />
+                {marker !== undefined && (
+                    <span className="meter-marker" style={{ left: `${Math.round(marker * 100)}%` }} title={markerLabel} />
+                )}
+            </span>
+            <span className="meter-value">{value}</span>
+        </div>
+    );
+}
+
+function DeviceIcon({ offline }: { offline: boolean }) {
+    return (
+        <svg className={`device-icon${offline ? ' offline' : ''}`} viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="5" y="3" width="14" height="18" rx="3" />
+            <circle cx="12" cy="9" r="2" />
+            <path d="M9 16h6" />
+        </svg>
+    );
+}
+
+// What signal looks like across this mesh, so one device can be judged against its peers
+function medianRssi(nodes: INodeHealth[]): number | undefined {
+    const values = nodes
+        .map(node => node.rssi)
+        .filter((rssi): rssi is number => typeof rssi === 'number')
+        .sort((a, b) => a - b);
+
+    if (values.length === 0) {
+        return undefined;
+    }
+
+    return values[Math.floor(values.length / 2)];
+}
+
+function clamp01(value: number): number {
+    return Math.max(0, Math.min(1, value));
+}
+
 function Reading({ label, value, title }: { label: string; value: string; title?: string }) {
     return (
         <div className="reading" title={title}>
@@ -391,14 +532,15 @@ function round2(value: number): number {
     return Math.round(value * 100) / 100;
 }
 
+// Phrased as a conclusion the user can act on, not a grade they have to interpret
 function stateLabel(state: HealthState): string {
     switch (state) {
         case HealthState.Good:
-            return 'Healthy';
+            return 'Working normally';
         case HealthState.Fair:
-            return 'Needs a look';
+            return 'Working · one thing to check';
         default:
-            return 'Degraded';
+            return 'Action needed';
     }
 }
 

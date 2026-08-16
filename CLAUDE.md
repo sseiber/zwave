@@ -84,6 +84,11 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - Keeps a rolling `samples` series (~2h) of score/noise/errorRate/messagesPerMinute/
      responseMs for the chart, and publishes `sweep` (active + last result) so the UI can
      show the sweep working around the mesh
+   - Thresholds answer "is it working?", not "is it ideal?": reliability (drops,
+     timeouts, silence) leads, and weak signal alone never makes a device Poor — a
+     Z-Wave receiver works to ~-95 dBm and 40 kbps routes are normal for older gear.
+     Low-headroom devices are reported but barely scored. Every factor carries a
+     `suggestion`, and `advice` says "Nothing to do" when that is the truth
    - `state` is only Good when no factor scores ≥10, so the badge can't read "healthy"
      while the headline names a struggling device
 
@@ -117,9 +122,12 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
    - Dashboard cards are roll-ups, deliberately fixed-height rather than per-device
      lists: devices-at-a-glance + total power; a **health** card modelled on a live
      network monitor: verdict line, a sweep line naming the device being measured right
-     now, and a hand-drawn SVG chart of noise floor / error rate / response time over
-     the retained window (each series scaled to its own range, legend carries the real
-     values), polling `GET /network/health` every 10s; one toggle tile per
+     now, and a framed, hand-drawn SVG chart of noise
+     floor / error rate / response time over the retained window (each series scaled to
+     its own range, legend carries the real values), polling `GET /network/health` every
+     10s. Expanded, flagged devices are drawn as meters (signal against the usable range
+     with the mesh median marked, route rate as segments, reply rate) rather than
+     described in prose; one toggle tile per
      room (tap = all off if any are on, else all on); and a schedule timeline strip with
      recent runs behind a "now" marker and planned runs ahead of it.
    - Mesh maintenance (route rebuild, device-DB update, re-interview unidentified) lives

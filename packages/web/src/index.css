@@ -7,6 +7,9 @@
     --accent: #2563eb;
     --warn: #b45309;
     --on: #16a34a;
+    /* A surface one step back from the card, for framed elements (charts, meters) */
+    --panel: #f0f2f5;
+    --panel-border: #d5dae1;
     color-scheme: light dark;
 }
 
@@ -19,6 +22,8 @@
         --border: #2c3238;
         --accent: #3b82f6;
         --on: #22c55e;
+        --panel: #171b1f;
+        --panel-border: #363d45;
     }
 }
 
@@ -831,16 +836,16 @@ button:disabled:hover { border-color: var(--border); }
 .health-toggle { width: 2.4rem; border-left: none; }
 
 .health-title { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
-.health-badge {
-    font-size: 1.15rem;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    letter-spacing: -0.01em;
-}
-.health-badge.good { color: var(--on); }
-.health-badge.warn { color: var(--warn); }
-.health-badge.bad { color: #dc2626; }
-.health-state { font-size: 0.8rem; color: var(--muted); }
+.health-state { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; }
+.health-state .state-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; flex: none; }
+.health-state.good { color: var(--on); }
+.health-state.good .state-dot { background: var(--on); }
+.health-state.warn { color: var(--warn); }
+.health-state.warn .state-dot { background: var(--warn); }
+.health-state.bad { color: #dc2626; }
+.health-state.bad .state-dot { background: #dc2626; }
+.health-advice { margin: 0 0 0.55rem; font-size: 0.82rem; line-height: 1.5; }
+.health-advice.quiet { color: var(--muted); }
 .health-headline { margin: 0.15rem 0 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
 
 /* Sweep line — the card's pulse: a device is measured every minute */
@@ -857,8 +862,14 @@ button:disabled:hover { border-color: var(--border); }
 }
 @media (prefers-reduced-motion: reduce) { .sweep-pulse { animation: none; } }
 
-/* The chart itself */
-.health-chart { margin: 0 0 0.4rem; }
+/* The chart, framed so it reads as an instrument rather than floating on the card */
+.health-chart {
+    margin: 0 0 0.55rem;
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 0.5rem 0.55rem 0.3rem;
+}
 .health-chart.empty {
     height: 6rem;
     display: flex;
@@ -872,12 +883,9 @@ button:disabled:hover { border-color: var(--border); }
     display: block;
     width: 100%;
     height: 6rem;
-    /* Fallback first for engines without color-mix (Safari < 16.4) */
-    background: var(--bg);
-    background: color-mix(in srgb, var(--bg) 60%, transparent);
-    border-radius: 8px;
+    background: transparent;
 }
-.chart-grid { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.chart-grid { stroke: var(--panel-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .chart-line {
     fill: none;
     stroke-width: 2;
@@ -893,7 +901,15 @@ button:disabled:hover { border-color: var(--border); }
 .chart-line.noise { stroke: var(--accent); }
 .chart-line.errors { stroke: #f59e0b; }
 .chart-line.response { stroke: #a855f7; }
-.chart-axis { display: flex; justify-content: space-between; font-size: 0.68rem; padding: 0.25rem 0.1rem 0; }
+.chart-axis {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    padding: 0.3rem 0.1rem 0;
+    border-top: 1px solid var(--panel-border);
+    margin-top: 0.35rem;
+}
+.chart-legend { padding: 0.1rem 0.1rem 0; }
 
 .chart-legend {
     list-style: none;
@@ -941,3 +957,53 @@ button:disabled:hover { border-color: var(--border); }
 .reading { display: grid; gap: 0.1rem; }
 .reading dt { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .reading dd { margin: 0; font-size: 0.95rem; font-variant-numeric: tabular-nums; }
+
+/* Device meters — the numbers behind a flagged device, drawn */
+.device-meters { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.7rem; width: 100%; }
+.device-meter {
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    background: var(--panel);
+    padding: 0.55rem 0.65rem;
+    display: grid;
+    gap: 0.35rem;
+}
+.device-meter-head { display: flex; align-items: center; gap: 0.45rem; }
+.device-meter-name { font-size: 0.88rem; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-meter-hops { font-size: 0.72rem; }
+.device-icon { width: 1.05rem; height: 1.05rem; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
+.device-meter.warn .device-icon { stroke: var(--warn); }
+.device-meter.bad .device-icon, .device-icon.offline { stroke: #dc2626; }
+
+.meter-row { display: flex; align-items: center; gap: 0.5rem; }
+.meter-label { font-size: 0.72rem; color: var(--muted); width: 3.2rem; flex: none; }
+.meter-value { font-size: 0.75rem; font-variant-numeric: tabular-nums; width: 4.4rem; text-align: right; flex: none; }
+.meter-track {
+    position: relative;
+    flex: 1;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: visible;
+}
+.meter-fill { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--muted); }
+.meter-fill.good { background: var(--on); }
+.meter-fill.warn { background: var(--warn); }
+.meter-fill.bad { background: #dc2626; }
+/* Where the rest of this mesh sits on the same scale */
+.meter-marker {
+    position: absolute;
+    top: -0.2rem;
+    bottom: -0.2rem;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--text);
+    opacity: 0.55;
+    border-radius: 1px;
+}
+.segments { flex: 1; display: flex; gap: 0.2rem; }
+.segment { flex: 1; height: 0.5rem; border-radius: 3px; background: var(--border); }
+.segment.on { background: var(--muted); }
+.segment.on.good { background: var(--on); }
+.segment.on.warn { background: var(--warn); }
+.segment.on.bad { background: #dc2626; }
