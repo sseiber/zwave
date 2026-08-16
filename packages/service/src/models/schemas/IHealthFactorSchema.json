@@ -17,6 +17,9 @@
         },
         "nodeId": {
           "type": "number"
+        },
+        "suggestion": {
+          "type": "string"
         }
       },
       "required": [

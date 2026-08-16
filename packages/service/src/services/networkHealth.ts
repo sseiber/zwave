@@ -42,8 +42,13 @@ const HistorySize = 240;
 // traffic, and it is what keeps the readings (and the view) moving.
 const SweepIntervalMs = 60 * 1000;
 
-// Thresholds behind the verdict. Chosen to be quiet when things are fine: a mesh in
-// good shape should sit at 100 and stay there.
+// Thresholds behind the verdict.
+//
+// The guiding principle is "is it working?", not "is it ideal?". A Z-Wave receiver is
+// good down to roughly -95 dBm, and older devices legitimately route at 40 kbps through
+// a repeater — none of that is a fault, and a mesh full of such devices should not be
+// told it needs attention. So RELIABILITY leads (drops, timeouts, silence) and signal
+// only counts once it is genuinely close to the floor.
 const Thresholds = {
     // Share of controller messages that failed
     errorRateFair: 0.02,
@@ -52,11 +57,11 @@ const Thresholds = {
     nodeDropFair: 0.05,
     nodeDropPoor: 0.2,
     // Round-trip time to one device, ms
-    rttFair: 500,
+    rttFair: 700,
     rttPoor: 1500,
-    // Signal, dBm
-    rssiFair: -80,
-    rssiPoor: -88,
+    // Signal, dBm. -88 is where headroom starts running out; -93 is nearly at the floor
+    rssiFair: -88,
+    rssiPoor: -93,
     // How far the current noise floor may sit above its own average, dB
     noiseSpike: 10,
     // An absolute noise floor above this is loud regardless of the average, dBm
@@ -158,9 +163,13 @@ export function nodeHealthState(node: INodeTelemetry, now: number): NodeHealthSt
         return NodeHealthState.Unknown;
     }
 
+    const failing = drop !== undefined && drop >= Thresholds.nodeDropFair;
+
+    // Weak signal on its own is not a fault — plenty of devices sit near the floor and
+    // answer every time. It only makes a device "poor" when it is actually failing too.
     if ((drop !== undefined && drop >= Thresholds.nodeDropPoor)
         || (node.rtt !== undefined && node.rtt >= Thresholds.rttPoor)
-        || (node.rssi !== undefined && node.rssi <= Thresholds.rssiPoor)
+        || (node.rssi !== undefined && node.rssi <= Thresholds.rssiPoor && failing)
         || isStale(node, now)) {
         return NodeHealthState.Poor;
     }
@@ -248,6 +257,7 @@ export function computeHealth(previous: INetworkTelemetry | undefined, current: 
                 : `${offline.length} devices are offline`,
             detail: offline.map(n => n.name).slice(0, 4).join(', '),
             impact: Math.min(50, 25 * offline.length),
+            suggestion: 'Check the device has power, then re-interview it from its Details. If it stays offline, rebuild routes.',
             ...(offline.length === 1 ? { nodeId: offline[0].nodeId } : {})
         });
     }
@@ -260,20 +270,24 @@ export function computeHealth(previous: INetworkTelemetry | undefined, current: 
         }
 
         factors.push({
-            label: `${node.name} is struggling`,
+            label: `${node.name} is missing commands`,
             detail: describeNodeProblem(node, source, now),
             impact: 10,
+            suggestion: 'Rebuild this device\'s routes from its Details. If it stays unreliable, a mains-powered device between it and the controller will give it a better path.',
             nodeId: node.nodeId
         });
     }
 
+    // Devices with less headroom than the rest. Reported, but barely scored: on a mesh
+    // of older devices this is the normal state of affairs, not a defect.
     if (fair.length > 0) {
         factors.push({
             label: fair.length === 1
-                ? `${fair[0].name} is marginal`
-                : `${fair.length} devices are marginal`,
-            detail: fair.map(n => n.name).slice(0, 4).join(', '),
-            impact: Math.min(12, 4 * fair.length),
+                ? `${fair[0].name} has little signal headroom`
+                : `${fair.length} devices have little signal headroom`,
+            detail: `${fair.map(n => n.name).slice(0, 3).join(', ')}${fair.length > 3 ? '…' : ''} — still answering, just with less margin than the rest`,
+            impact: Math.min(6, 2 * fair.length),
+            suggestion: 'Normal for older or distant devices. Worth acting on only if one of them starts missing commands.',
             ...(fair.length === 1 ? { nodeId: fair[0].nodeId } : {})
         });
     }
@@ -284,7 +298,8 @@ export function computeHealth(previous: INetworkTelemetry | undefined, current: 
         factors.push({
             label: poorTraffic ? 'Many commands are failing in transit' : 'Some commands are being retried',
             detail: `${percent(traffic.errorRate)} of recent controller messages failed (${traffic.errors} of ${traffic.messages + traffic.errors})`,
-            impact: poorTraffic ? 25 : 10
+            impact: poorTraffic ? 25 : 10,
+            suggestion: 'Usually interference or a controller placement problem: keep the stick away from USB 3 ports, hubs and powerline adapters, on an extension cable if you can.'
         });
     }
 
@@ -296,8 +311,9 @@ export function computeHealth(previous: INetworkTelemetry | undefined, current: 
         if (spike >= Thresholds.noiseSpike || noise.current >= Thresholds.noiseLoud) {
             factors.push({
                 label: 'RF interference nearby',
-                detail: `Noise floor ${noise.current} dBm, ${round(spike)} dB above its average — check for USB 3 devices or powerline adapters near the controller`,
-                impact: noise.current >= Thresholds.noiseLoud ? 20 : 12
+                detail: `Noise floor ${noise.current} dBm, ${round(spike)} dB above its average`,
+                impact: noise.current >= Thresholds.noiseLoud ? 20 : 12,
+                suggestion: 'Something near the controller is radiating: USB 3 devices, hubs and powerline adapters are the usual culprits. Move the stick onto an extension cable, away from them.'
             });
         }
     }
@@ -320,6 +336,7 @@ export function computeHealth(previous: INetworkTelemetry | undefined, current: 
         score,
         state,
         headline: headlineFor(state, factors, responding, nodes.length, unmeasured.length),
+        advice: adviceFor(factors),
         factors,
         sampledAt: new Date(now).toISOString(),
         devices: {
@@ -378,6 +395,23 @@ function summarizeNoise(telemetry: INetworkTelemetry): INetworkHealth['noise'] {
     };
 }
 
+// What the user should do. The important case is the quiet one: a mesh whose only
+// marks against it are weak-but-working devices is as good as it is going to get, and
+// saying so is more useful than a score the user has to interpret.
+function adviceFor(factors: IHealthFactor[]): string {
+    if (factors.length === 0) {
+        return 'Nothing to do.';
+    }
+
+    const actionable = factors.filter(factor => factor.impact >= 10);
+
+    if (actionable.length === 0) {
+        return 'Nothing to do — this is a normal, working mesh. Older and more distant devices simply run with less signal margin.';
+    }
+
+    return actionable[0].suggestion ?? 'Worth investigating.';
+}
+
 // The sentence at the top of the card
 function headlineFor(state: HealthState, factors: IHealthFactor[], responding: number, total: number, unmeasured: number): string {
     if (total === 0) {
@@ -394,9 +428,16 @@ function headlineFor(state: HealthState, factors: IHealthFactor[], responding: n
 
     const lead = factors[0]?.label ?? 'Network is degraded';
 
-    return state === HealthState.Poor
-        ? `${lead} — ${responding} of ${total} devices responding`
-        : lead;
+    if (state === HealthState.Poor) {
+        return `${lead} — ${responding} of ${total} devices responding`;
+    }
+
+    // Nothing actionable: lead with the fact that it is working, not with the caveat
+    if (!factors.some(factor => factor.impact >= 10)) {
+        return `All ${total} devices responding · ${lead.toLowerCase()}`;
+    }
+
+    return lead;
 }
 
 // Fallback when the driver has not produced a usable sample yet (e.g. the very first
@@ -406,6 +447,7 @@ function emptyHealth(): INetworkHealth {
         score: 100,
         state: HealthState.Good,
         headline: 'Waiting for the first reading',
+        advice: 'Nothing to do.',
         factors: [],
         samples: [],
         sampledAt: new Date().toISOString(),

@@ -232,6 +232,8 @@ export interface IHealthFactor {
     detail?: string;
     // Points this subtracted from the score
     impact: number;
+    // What to actually do about it — absent when the honest answer is "nothing"
+    suggestion?: string;
     // Device this concerns, when it is about one device
     nodeId?: number;
 }
@@ -291,6 +293,10 @@ export interface INetworkHealth {
     state: HealthState;
     // One-sentence plain-language verdict
     headline: string;
+    // What the user should do about it, including "nothing" when that's the truth.
+    // A mesh of older devices sits at less than 100 and is still working as well as it
+    // ever will; this is where that gets said out loud.
+    advice: string;
     // What is holding the score down, worst first; empty when everything is fine
     factors: IHealthFactor[];
     // Rolling series behind the chart, oldest first (~2 hours at the sampling interval)
