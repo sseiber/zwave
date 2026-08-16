@@ -155,7 +155,8 @@ input[type="checkbox"], select, label.check { touch-action: manipulation; }
     stroke-linejoin: round;
 }
 .nav-item.active .nav-icon svg { stroke-width: 2.1; }
-.nav-label { font-size: 0.7rem; line-height: 1; }
+.nav-label { font-size: 0.66rem; line-height: 1; }
+.nav-item .nav-icon svg { width: 1.35rem; height: 1.35rem; }
 .nav-count {
     position: absolute;
     top: 0.15rem;
@@ -833,9 +834,7 @@ button:disabled:hover { border-color: var(--border); }
 .dash-card.health { border-left-color: var(--on); }
 .dash-card.health.warn { border-left-color: var(--warn); }
 .dash-card.health.bad { border-left-color: #dc2626; }
-.health-toggle { width: 2.4rem; border-left: none; }
 
-.health-title { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
 .health-state { display: flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; font-weight: 600; }
 .health-state .state-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; flex: none; }
 .health-state.good { color: var(--on); }
@@ -844,9 +843,6 @@ button:disabled:hover { border-color: var(--border); }
 .health-state.warn .state-dot { background: var(--warn); }
 .health-state.bad { color: #dc2626; }
 .health-state.bad .state-dot { background: #dc2626; }
-.health-advice { margin: 0 0 0.55rem; font-size: 0.82rem; line-height: 1.5; }
-.health-advice.quiet { color: var(--muted); }
-.health-headline { margin: 0.15rem 0 0.5rem; font-size: 0.85rem; line-height: 1.5; color: var(--muted); }
 
 /* Sweep line — the card's pulse: a device is measured every minute */
 .sweep-line { margin: 0 0 0.55rem; font-size: 0.8rem; display: flex; align-items: center; gap: 0.4rem; }
@@ -928,11 +924,35 @@ button:disabled:hover { border-color: var(--border); }
 .chart-legend .errors .swatch { background: #f59e0b; }
 .chart-legend .response .swatch { background: #a855f7; }
 
-/* Device strip: healthy devices stay quiet so problems catch the eye */
-.device-strip .mesh-dots { gap: 0.34rem; margin: 0; }
-.device-strip .mesh-dot.good { background: var(--on); opacity: 0.38; }
-.device-strip .mesh-dot.warn { background: var(--warn); }
-.device-strip .mesh-dot.bad { background: #dc2626; }
+/* Device strip — every device as a dot: tap to inspect, ringed while being swept */
+.device-strip { display: flex; flex-wrap: wrap; gap: 0.1rem; margin: 0 0 0.15rem; }
+.dot-hit {
+    width: 1.7rem;
+    height: 1.7rem;
+    min-height: 0;
+    padding: 0;
+    border: none;
+    background: none;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.dot-hit:hover { border-color: transparent; }
+.dot-hit .mesh-dot { width: 0.72rem; height: 0.72rem; }
+.dot-hit .mesh-dot.good { background: var(--on); opacity: 0.42; }
+.dot-hit .mesh-dot.warn { background: var(--warn); }
+.dot-hit .mesh-dot.bad { background: #dc2626; }
+.dot-hit.selected { background: var(--panel); box-shadow: inset 0 0 0 2px var(--accent); }
+.dot-hit.selected .mesh-dot { opacity: 1; }
+/* The device the sweep is measuring */
+.dot-hit.sweeping .mesh-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); opacity: 1; }
+.dot-hit.sweeping.active .mesh-dot { animation: dot-sweep 1.2s ease-in-out infinite; }
+@keyframes dot-sweep {
+    0%, 100% { box-shadow: 0 0 0 2px var(--accent); }
+    50% { box-shadow: 0 0 0 6px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .dot-hit.sweeping.active .mesh-dot { animation: none; } }
 
 .health-details {
     margin-top: 0.9rem;
@@ -1007,3 +1027,28 @@ button:disabled:hover { border-color: var(--border); }
 .segment.on.good { background: var(--on); }
 .segment.on.warn { background: var(--warn); }
 .segment.on.bad { background: #dc2626; }
+
+/* Health view */
+.health-view .panel-head { align-items: center; }
+.health-view .health-chart { margin-bottom: 0.5rem; }
+.health-view .device-meter { margin-top: 0.35rem; }
+.meter-empty { font-size: 0.8rem; margin: 0; }
+.sweep-line { margin: 0 0 0.6rem; font-size: 0.76rem; }
+.sweep-line.active { color: var(--accent); }
+
+/* Advisory text lives at the bottom, closed by default */
+.health-notes {
+    margin-top: 1.1rem;
+    border-top: 1px solid var(--border);
+    padding-top: 0.6rem;
+}
+.health-notes > summary { cursor: pointer; font-size: 0.8rem; color: var(--muted); padding: 0.2rem 0; }
+.health-notes-body { display: grid; gap: 0.8rem; padding-top: 0.5rem; }
+.health-advice { margin: 0; font-size: 0.85rem; line-height: 1.5; }
+
+/* Dashboard summary card */
+.health-summary .health-summary-body { display: grid; gap: 0.25rem; }
+.health-summary.good { border-left-color: var(--on); }
+.health-summary.warn { border-left-color: var(--warn); }
+.health-summary.bad { border-left-color: #dc2626; }
+.health-summary .muted { font-size: 0.82rem; }
