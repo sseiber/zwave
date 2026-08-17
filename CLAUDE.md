@@ -121,6 +121,8 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      reached from a fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
    - `App` owns the polled state (devices, rooms, scenes, scene status, health) on one
      5s interval and passes it down; panels don't fetch their own.
+   - Card colour means status: an accent left edge at rest, amber/red only when that
+     card needs attention (only Health has a state, so only Health ever deviates).
    - Dashboard cards and scene tiles are **one per row at every width** (`.dash-grid` /
      `.scene-tiles` are single-column) — the same rhythm as the device list, rather than
      a masonry that reflows with the window.

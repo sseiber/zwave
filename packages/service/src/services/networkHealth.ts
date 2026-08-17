@@ -59,9 +59,11 @@ const Thresholds = {
     // Round-trip time to one device, ms
     rttFair: 700,
     rttPoor: 1500,
-    // Signal, dBm. -88 is where headroom starts running out; -93 is nearly at the floor
-    rssiFair: -88,
-    rssiPoor: -93,
+    // Signal, dBm. A Z-Wave receiver is good to about -95 dBm, so -90 still leaves a
+    // few dB of margin and is worth noting rather than worrying about; -95 is the floor
+    // itself, where a device is running on nothing.
+    rssiFair: -90,
+    rssiPoor: -95,
     // How far the current noise floor may sit above its own average, dB
     noiseSpike: 10,
     // An absolute noise floor above this is loud regardless of the average, dBm

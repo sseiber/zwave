@@ -1,10 +1,11 @@
 # Roadmap — richer device state, scheduler run times, dashboard
 
 > **This document is the design record for the FIRST batch (Features 1–3).** They and
-> several later phases have all shipped — see the running list below. Nothing is queued
-> as a next phase right now.
+> several later phases have all shipped — see the running list below. The current
+> forward-looking item is
+> **[Next phase — mobile space and calm](#next-phase--mobile-space-and-calm)** at the bottom.
 
-**Shipped since (current version 1.12.0, deployed to the Pi with real devices):**
+**Shipped since (current version 1.25.0, deployed to the Pi with real devices):**
 
 | Ver | What |
 |---|---|
@@ -17,6 +18,14 @@
 | 1.10.0 | Device configuration parameters (Configuration CC) in device Details |
 | 1.11.0 | Mesh maintenance — re-interview (`node.refreshInfo`) + route rebuild |
 | 1.12.0 | Device-database updates at runtime + raw device IDs (unknown-device fix) |
+| 1.13.0 | Touch: subtle press feedback; taps no longer fight scrolling |
+| 1.14.0 | Dashboard-as-home + bottom nav; mesh dots, room tiles, schedule timeline |
+| 1.15.0 | **Fix**: switch commands via `node.setValue` so cached on/off state is not stale |
+| 1.16.0 | Activation-first Scenes view, grouped by room |
+| 1.17.0 | Scroll-first taps, bottom toasts, per-view action menus |
+| 1.18.0 - 1.19.0 | Composite network health (score + reasons + background sweep) |
+| 1.20.0 - 1.22.0 | Health as a live chart, then its own view with tappable device dots |
+| 1.23.0 - 1.25.0 | Dashboard cleanup, device filters, chart axes, health recalibration |
 
 Plus a tested live-backup script (`setup/deployment/zwave-backup.sh`) and its SIGPIPE
 fix. Build/deploy/git conventions are in [CLAUDE.md](../CLAUDE.md); the web UI lives in
@@ -164,3 +173,37 @@ together.
   poll that actively `Meter.get()`s? (Recommend cached first; active refresh later.)
 - **Run-time persistence**: persist `lastRun` in `scenes.json` (survives restart) vs
   in-memory only (simpler). Recommend persist.
+
+---
+
+# Next phase — mobile space and calm
+
+**Not started.** The views work, but a lot is packed into each one. The next pass is
+about *space*: making the mobile screen easier to read and use without losing any of the
+features, and without going back on
+[docs/ui-principles.md](ui-principles.md).
+
+The problem, view by view (worth re-checking on the tablet before starting):
+
+- **Dashboard** — four stacked cards, each with its own internal density. Health,
+  Devices, Rooms, Schedule all compete at the same visual weight.
+- **Health** — chart, axes, legend, dot strip, sweep line, device meters and three note
+  blocks in one scroll.
+- **Devices** — every device is a card with controls plus an expandable Details holding
+  rich state, configuration parameters and maintenance.
+- **Scenes** — tiles plus per-tile detail disclosure; the editor is a long form
+  (name, room, schedules, triggers-era leftovers, per-device actions).
+
+Directions to consider (none decided):
+
+- A consistent vertical rhythm and one spacing scale across cards, rather than
+  per-component padding chosen ad hoc.
+- Fewer things visible at once per view: progressive disclosure that is predictable
+  (the scene-tile chevron pattern is the established one).
+- Larger type for the few numbers that matter, smaller/quieter everything else.
+- Section headers or dividers to give the eye somewhere to rest between groups.
+- Reconsider whether the dashboard needs all four cards, or whether some of it belongs
+  only in its own view.
+
+Constraints that must survive: one card per row, controls that don't morph, touch
+targets, scroll-beats-press, and instruments over prose.
