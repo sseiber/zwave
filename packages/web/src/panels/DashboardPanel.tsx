@@ -1,8 +1,6 @@
 import { useState } from 'react';
 import type { IDeviceInfo, INetworkHealth, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import { DeviceAction, DeviceStatus } from '@zwave-service/contracts';
-import type { RunFn } from '../types.ts';
-import { api } from '../api.ts';
 import { describeSchedule } from '../schedule.ts';
 import { HealthSummaryCard } from './HealthPanel.tsx';
 import { relativeTime, relativeUpcoming, absoluteTime, clockTime, round } from '../format.ts';
@@ -13,9 +11,6 @@ interface DashboardPanelProps {
     rooms: IRoom[];
     scenes: IScene[];
     statuses: ISceneStatus[];
-    run: RunFn;
-    refresh: () => Promise<void>;
-    onNavigate: (tab: 'devices' | 'rooms' | 'scenes' | 'health') => void;
 }
 
 // A device is treated as offline when the driver has marked it dead.
@@ -23,7 +18,7 @@ function isOffline(device: IDeviceInfo): boolean {
     return device.status === DeviceStatus.Dead;
 }
 
-export function DashboardPanel({ devices, health, rooms, scenes, statuses, run, refresh, onNavigate }: DashboardPanelProps) {
+export function DashboardPanel({ devices, health, rooms, scenes, statuses }: DashboardPanelProps) {
     const onCount = devices.filter(d => d.on === true).length;
     const offlineCount = devices.filter(isOffline).length;
     const totalWatts = devices.reduce((sum, d) => sum + (d.power?.watts ?? 0), 0);
@@ -37,11 +32,10 @@ export function DashboardPanel({ devices, health, rooms, scenes, statuses, run, 
                     on={onCount}
                     offline={offlineCount}
                     totalWatts={hasPower ? totalWatts : undefined}
-                    onNavigate={onNavigate}
                 />
-                <HealthSummaryCard health={health} onOpen={() => onNavigate('health')} />
-                <RoomsCard rooms={rooms} devices={devices} run={run} refresh={refresh} onNavigate={onNavigate} />
-                <ScheduleCard scenes={scenes} statuses={statuses} devices={devices} onNavigate={onNavigate} />
+                <HealthSummaryCard health={health} />
+                <RoomsCard rooms={rooms} devices={devices} />
+                <ScheduleCard scenes={scenes} statuses={statuses} devices={devices} />
             </div>
         </section>
     );
@@ -52,15 +46,13 @@ interface GlanceCardProps {
     on: number;
     offline: number;
     totalWatts: number | undefined;
-    onNavigate: (tab: 'devices') => void;
 }
 
-function GlanceCard({ total, on, offline, totalWatts, onNavigate }: GlanceCardProps) {
+function GlanceCard({ total, on, offline, totalWatts }: GlanceCardProps) {
     return (
         <div className="card dash-card">
             <div className="dash-card-head">
                 <h3>Devices</h3>
-                <button className="link-btn" onClick={() => onNavigate('devices')}>View all</button>
             </div>
             {total === 0
                 ? <p className="muted">No devices yet. Add a switch or dimmer from Devices.</p>
@@ -92,23 +84,16 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: 'on
 interface RoomsCardProps {
     rooms: IRoom[];
     devices: IDeviceInfo[];
-    run: RunFn;
-    refresh: () => Promise<void>;
-    onNavigate: (tab: 'rooms') => void;
 }
 
-function RoomsCard({ rooms, devices, run, refresh, onNavigate }: RoomsCardProps) {
-    const control = async (room: IRoom, action: DeviceAction): Promise<void> => {
-        if (await run(() => api.controlRoom(room.id, { action }))) {
-            await refresh();
-        }
-    };
+// Status only: the dashboard reports what is on where, and the Rooms view is where
+// anything actually gets switched.
+function RoomsCard({ rooms, devices }: RoomsCardProps) {
 
     return (
         <div className="card dash-card">
             <div className="dash-card-head">
                 <h3>Rooms</h3>
-                <button className="link-btn" onClick={() => onNavigate('rooms')}>Manage</button>
             </div>
             {rooms.length === 0
                 ? <p className="muted">No rooms yet. Group devices from Rooms.</p>
@@ -121,19 +106,13 @@ function RoomsCard({ rooms, devices, run, refresh, onNavigate }: RoomsCardProps)
 
                             return (
                                 <li key={room.id}>
-                                    {/* One tap toggles the room: everything off if anything is on, else all on */}
-                                    <button
-                                        className={`room-tile${anyOn ? ' on' : ''}`}
-                                        disabled={members.length === 0}
-                                        title={anyOn ? `Turn ${room.name} off` : `Turn ${room.name} on`}
-                                        onClick={() => void control(room, anyOn ? DeviceAction.Off : DeviceAction.On)}
-                                    >
-                                        <span className="room-tile-name">{room.name}</span>
+                                    <div className={`room-tile${anyOn ? ' on' : ''}`}>
+                                        <span className="room-tile-name" title={room.name}>{room.name}</span>
                                         <span className="room-tile-state">
                                             <span className={`room-tile-dot${anyOn ? ' on' : ''}`} aria-hidden="true" />
                                             {members.length === 0 ? 'no devices' : `${onCount}/${members.length} on`}
                                         </span>
-                                    </button>
+                                    </div>
                                 </li>
                             );
                         })}
@@ -172,10 +151,9 @@ interface ScheduleCardProps {
     scenes: IScene[];
     statuses: ISceneStatus[];
     devices: IDeviceInfo[];
-    onNavigate: (tab: 'scenes') => void;
 }
 
-function ScheduleCard({ scenes, statuses, devices, onNavigate }: ScheduleCardProps) {
+function ScheduleCard({ scenes, statuses, devices }: ScheduleCardProps) {
     // Which dot the user tapped, if any — tapping it again clears the detail
     const [selectedKey, setSelectedKey] = useState<string | null>(null);
     const nameById = new Map(scenes.map(s => [s.id, s.name]));
@@ -232,7 +210,6 @@ function ScheduleCard({ scenes, statuses, devices, onNavigate }: ScheduleCardPro
         <div className="card dash-card">
             <div className="dash-card-head">
                 <h3>Schedule</h3>
-                <button className="link-btn" onClick={() => onNavigate('scenes')}>Scenes</button>
             </div>
 
             {runs.length === 0
