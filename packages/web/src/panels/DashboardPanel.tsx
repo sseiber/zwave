@@ -27,13 +27,13 @@ export function DashboardPanel({ devices, health, rooms, scenes, statuses }: Das
     return (
         <section className="dashboard">
             <div className="dash-grid">
+                <HealthSummaryCard health={health} />
                 <GlanceCard
                     total={devices.length}
                     on={onCount}
                     offline={offlineCount}
                     totalWatts={hasPower ? totalWatts : undefined}
                 />
-                <HealthSummaryCard health={health} />
                 <RoomsCard rooms={rooms} devices={devices} />
                 <ScheduleCard scenes={scenes} statuses={statuses} devices={devices} />
             </div>

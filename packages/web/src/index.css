@@ -5,7 +5,7 @@
     --muted: #6b7280;
     --border: #e3e6ea;
     --accent: #2563eb;
-    --warn: #b45309;
+    --warn: #c2740a;
     --on: #16a34a;
     /* A surface one step back from the card, for framed elements (charts, meters) */
     --panel: #f0f2f5;
@@ -22,6 +22,8 @@
         --border: #2c3238;
         --accent: #3b82f6;
         --on: #22c55e;
+        /* Amber reads as amber on a dark ground; the light-mode value is too muddy */
+        --warn: #e0a13a;
         --panel: #171b1f;
         --panel-border: #363d45;
     }
@@ -185,6 +187,13 @@ input[type="checkbox"], select, label.check { touch-action: manipulation; }
     border-radius: 10px;
     padding: 0.8rem 0.9rem;
 }
+/*
+ * Card colour means one thing everywhere: the accent edge is simply "this is a card of
+ * yours", and a warning colour appears ONLY when that card needs attention. So the
+ * dashboard is a row of blue edges at rest, and anything amber or red is a real signal
+ * rather than decoration.
+ */
+.dash-card { border-left-color: var(--accent); }
 .card.device.on { border-left-color: var(--on); }
 
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
@@ -845,7 +854,8 @@ button:disabled:hover { border-color: var(--border); }
 .action-menu-hint { font-size: 0.74rem; }
 
 /* Network health — a live chart card: verdict line, sweep pulse, series, devices */
-.dash-card.health { border-left-color: var(--on); }
+/* Health is the one card with a state, and it only breaks from the accent edge when
+   that state is something other than fine */
 .dash-card.health.warn { border-left-color: var(--warn); }
 .dash-card.health.bad { border-left-color: #dc2626; }
 
@@ -1094,7 +1104,6 @@ button:disabled:hover { border-color: var(--border); }
 
 /* Dashboard summary card */
 .health-summary .health-summary-body { display: grid; gap: 0.25rem; }
-.health-summary.good { border-left-color: var(--on); }
 .health-summary.warn { border-left-color: var(--warn); }
 .health-summary.bad { border-left-color: #dc2626; }
 .health-summary .muted { font-size: 0.82rem; }
