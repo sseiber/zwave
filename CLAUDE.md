@@ -121,8 +121,9 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      reached from a fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
    - `App` owns the polled state (devices, rooms, scenes, scene status, health) on one
      5s interval and passes it down; panels don't fetch their own.
-   - Dashboard cards are roll-ups, deliberately fixed-height rather than per-device
-     lists: devices-at-a-glance + total power; a **health** summary (state + responding
+   - Dashboard cards are read-only roll-ups: no per-tile navigation (the bottom bar
+     covers that) and no controls (room tiles report state; the Rooms view switches
+     things). Deliberately fixed-height rather than per-device lists: devices-at-a-glance + total power; a **health** summary (state + responding
      count + a link into the Health view); one toggle tile per
      room (tap = all off if any are on, else all on); and a schedule timeline strip with
      recent runs behind a "now" marker and planned runs ahead of it.
@@ -136,8 +137,12 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      pulses while its ping is in flight, tapping one pins its readings — then that
      device's meters (signal against the usable range with the mesh median marked, route
      rate as segments, reply rate). All advisory prose (advice, factors, raw readings)
-     is collapsed into a **Notes** disclosure at the bottom, deliberately out of the way.
+     sits below the instruments in labelled blocks (What to do / Why / Readings) —
+     out of the way but in plain sight.
      `HealthSummaryCard` is the dashboard's one-line version of the same data.
+   - The Devices view has filter chips built from `DeviceFilters`: a chip only appears
+     when it would select some but not all devices, so the row grows with the network
+     (Metered/Battery/Unidentified show up only once such a device exists).
    - The Scenes view is activation-first: scenes are grouped under their room label
      (`groupScenesByRoom`; `roomId` is only a label, so unlabelled scenes group last) and
      each tile *is* the Activate button, showing the name plus one meta line. The device

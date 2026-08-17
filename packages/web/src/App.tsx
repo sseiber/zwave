@@ -186,7 +186,7 @@ export function App() {
             {loading
                 ? <p className="muted">Loading…</p>
                 : tab === 'dashboard'
-                    ? <DashboardPanel devices={devices} health={health} rooms={rooms} scenes={scenes} statuses={sceneStatus} run={run} refresh={refreshDevices} onNavigate={setTab} />
+                    ? <DashboardPanel devices={devices} health={health} rooms={rooms} scenes={scenes} statuses={sceneStatus} />
                     : tab === 'devices'
                         ? <DevicesPanel devices={devices} run={run} refresh={refreshDevices} />
                         : tab === 'rooms'

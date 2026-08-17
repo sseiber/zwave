@@ -8,9 +8,9 @@ import { relativeTime, absoluteTime, clockTime } from '../format.ts';
 //
 // Read top to bottom it is: what state the mesh is in, what it has been doing (chart),
 // every device at a glance (dots — the one being swept is ringed, tap any to inspect
-// it), then that device's readings as meters. Everything advisory is pushed to the
-// bottom under Notes, so the working surface stays a set of instruments and the prose
-// is there only when someone goes looking for it.
+// it), then that device's readings as meters. Everything advisory sits below that,
+// labelled, so the working surface stays a set of instruments and the words are out of
+// the way without being hidden.
 //
 
 // Each series is drawn against its own range, so shapes are comparable even though the
@@ -76,12 +76,11 @@ export function HealthPanel({ health }: { health: INetworkHealth | null }) {
 }
 
 // Compact summary for the dashboard: the conclusion, and a way through to the detail
-export function HealthSummaryCard({ health, onOpen }: { health: INetworkHealth | null; onOpen: () => void }) {
+export function HealthSummaryCard({ health }: { health: INetworkHealth | null }) {
     return (
         <div className={`card dash-card health-summary${health ? ` ${toneFor(health.state)}` : ''}`}>
             <div className="dash-card-head">
                 <h3>Health</h3>
-                <button className="link-btn" onClick={onOpen}>Details →</button>
             </div>
 
             {health
@@ -363,17 +362,20 @@ function DeviceIcon({ offline }: { offline: boolean }) {
     );
 }
 
-// Everything advisory, at the bottom where it belongs: what to do, and why. Nothing up
-// in the instruments needs to be read — this is where someone comes when it does.
+// Everything advisory, at the bottom where it belongs — below the instruments, but in
+// plain sight rather than behind a disclosure. Each block is labelled so the wall of
+// numbers above has something naming what it means.
 function Notes({ health }: { health: INetworkHealth }) {
     return (
-        <details className="health-notes">
-            <summary>Notes</summary>
-
-            <div className="health-notes-body">
+        <div className="health-notes">
+            <section className="health-note">
+                <h3 className="health-note-head">What to do</h3>
                 <p className="health-advice">{health.advice}</p>
+            </section>
 
-                {health.factors.length > 0 && (
+            {health.factors.length > 0 && (
+                <section className="health-note">
+                    <h3 className="health-note-head">Why</h3>
                     <ul className="health-factors">
                         {health.factors.map(factor => (
                             <li key={factor.label}>
@@ -383,8 +385,11 @@ function Notes({ health }: { health: INetworkHealth }) {
                             </li>
                         ))}
                     </ul>
-                )}
+                </section>
+            )}
 
+            <section className="health-note">
+                <h3 className="health-note-head">Readings</h3>
                 <dl className="health-readings">
                     <Reading label="Score" value={String(health.score)} />
                     <Reading label="Responding" value={`${health.devices.responding}/${health.devices.total}`} />
@@ -392,8 +397,8 @@ function Notes({ health }: { health: INetworkHealth }) {
                     <Reading label="Traffic" value={`${health.traffic.messagesPerMinute}/min`} />
                     <Reading label="Updated" value={relativeTime(health.sampledAt)} title={absoluteTime(health.sampledAt)} />
                 </dl>
-            </div>
-        </details>
+            </section>
+        </div>
     );
 }
 

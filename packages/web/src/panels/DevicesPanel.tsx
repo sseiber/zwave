@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { IDeviceInfo, IHealthCheckResult, IDeviceConfigParam } from '@zwave-service/contracts';
-import { DeviceAction, DeviceType } from '@zwave-service/contracts';
+import { DeviceAction, DeviceStatus, DeviceType } from '@zwave-service/contracts';
 import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 import { relativeTime, signal, round } from '../format.ts';
@@ -13,10 +13,43 @@ interface DevicesPanelProps {
     refresh: () => Promise<void>;
 }
 
+//
+// Filters. Each one only appears when at least one device matches it, so the row stays
+// short on a small network and grows only where it earns its place — a mesh with no
+// battery or metered devices never shows those chips.
+//
+interface DeviceFilter {
+    key: string;
+    label: string;
+    matches: (device: IDeviceInfo) => boolean;
+}
+
+const DeviceFilters: DeviceFilter[] = [
+    { key: 'on', label: 'On', matches: device => device.on === true },
+    { key: 'off', label: 'Off', matches: device => device.on === false },
+    { key: 'online', label: 'Online', matches: device => device.status !== DeviceStatus.Dead },
+    { key: 'offline', label: 'Offline', matches: device => device.status === DeviceStatus.Dead },
+    { key: 'dimmer', label: 'Dimmers', matches: device => device.type === DeviceType.Dimmer },
+    { key: 'switch', label: 'Switches', matches: device => device.type === DeviceType.Switch },
+    { key: 'metered', label: 'Metered', matches: device => device.power?.watts !== undefined },
+    { key: 'battery', label: 'Battery', matches: device => device.battery !== undefined },
+    { key: 'unidentified', label: 'Unidentified', matches: device => !device.manufacturer }
+];
+
 export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
     const [including, setIncluding] = useState(false);
+    const [filter, setFilter] = useState<string | null>(null);
     const [maintState, maintActions] = useMaintenance({ devices, run, refresh });
     const unidentifiedCount = devices.filter(d => !d.manufacturer).length;
+
+    // Only offer a filter that would actually select something, and drop a filter that
+    // stops matching (e.g. the last offline device came back) rather than showing none
+    const available = DeviceFilters
+        .map(entry => ({ ...entry, count: devices.filter(entry.matches).length }))
+        .filter(entry => entry.count > 0 && entry.count < devices.length);
+
+    const active = available.find(entry => entry.key === filter);
+    const shown = active ? devices.filter(active.matches) : devices;
 
     const control = async (nodeId: number, action: DeviceAction, level?: number): Promise<void> => {
         if (await run(() => api.controlDevice(nodeId, { action, level }))) {
@@ -58,11 +91,31 @@ export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
 
             <MaintenanceStatus state={maintState} actions={maintActions} />
 
+            {available.length > 1 && (
+                <div className="filters" role="group" aria-label="Filter devices">
+                    <button
+                        className={filter === null ? 'chip active' : 'chip'}
+                        onClick={() => setFilter(null)}
+                    >
+                        All <span className="chip-count">{devices.length}</span>
+                    </button>
+                    {available.map(entry => (
+                        <button
+                            key={entry.key}
+                            className={filter === entry.key ? 'chip active' : 'chip'}
+                            onClick={() => setFilter(current => (current === entry.key ? null : entry.key))}
+                        >
+                            {entry.label} <span className="chip-count">{entry.count}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+
             {devices.length === 0
                 ? <p className="muted">No devices yet. Use “Add device” and pair a switch or dimmer.</p>
                 : (
                     <ul className="cards">
-                        {devices.map(device => (
+                        {shown.map(device => (
                             <DeviceCard key={device.nodeId} device={device} onControl={control} run={run} refresh={refresh} />
                         ))}
                     </ul>
