@@ -5,6 +5,7 @@ import type { RunFn } from '../types.ts';
 import { api } from '../api.ts';
 import { relativeTime, signal, round } from '../format.ts';
 import { ActionMenu } from './ActionMenu.tsx';
+import { FilterMenu, applyFilters, type FilterOption } from './FilterMenu.tsx';
 import { MaintenanceStatus, maintenanceMenuItems, useMaintenance } from './Maintenance.tsx';
 
 interface DevicesPanelProps {
@@ -13,43 +14,27 @@ interface DevicesPanelProps {
     refresh: () => Promise<void>;
 }
 
-//
-// Filters. Each one only appears when at least one device matches it, so the row stays
-// short on a small network and grows only where it earns its place — a mesh with no
-// battery or metered devices never shows those chips.
-//
-interface DeviceFilter {
-    key: string;
-    label: string;
-    matches: (device: IDeviceInfo) => boolean;
-}
-
-const DeviceFilters: DeviceFilter[] = [
-    { key: 'on', label: 'On', matches: device => device.on === true },
-    { key: 'off', label: 'Off', matches: device => device.on === false },
-    { key: 'online', label: 'Online', matches: device => device.status !== DeviceStatus.Dead },
-    { key: 'offline', label: 'Offline', matches: device => device.status === DeviceStatus.Dead },
-    { key: 'dimmer', label: 'Dimmers', matches: device => device.type === DeviceType.Dimmer },
-    { key: 'switch', label: 'Switches', matches: device => device.type === DeviceType.Switch },
-    { key: 'metered', label: 'Metered', matches: device => device.power?.watts !== undefined },
-    { key: 'battery', label: 'Battery', matches: device => device.battery !== undefined },
-    { key: 'unidentified', label: 'Unidentified', matches: device => !device.manufacturer }
+// The filter set is fixed — the same options in the same places every time, whatever
+// the devices happen to be doing. Only the counts beside them move.
+const DeviceFilters: FilterOption<IDeviceInfo>[] = [
+    { key: 'on', group: 'State', label: 'On', matches: device => device.on === true },
+    { key: 'off', group: 'State', label: 'Off', matches: device => device.on === false },
+    { key: 'online', group: 'Availability', label: 'Online', matches: device => device.status !== DeviceStatus.Dead },
+    { key: 'offline', group: 'Availability', label: 'Offline', matches: device => device.status === DeviceStatus.Dead },
+    { key: 'dimmer', group: 'Type', label: 'Dimmer', matches: device => device.type === DeviceType.Dimmer },
+    { key: 'switch', group: 'Type', label: 'Switch', matches: device => device.type === DeviceType.Switch },
+    { key: 'metered', group: 'Reports', label: 'Energy', matches: device => device.power?.watts !== undefined },
+    { key: 'battery', group: 'Reports', label: 'Battery', matches: device => device.battery !== undefined },
+    { key: 'unidentified', group: 'Reports', label: 'Unidentified', matches: device => !device.manufacturer }
 ];
 
 export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
     const [including, setIncluding] = useState(false);
-    const [filter, setFilter] = useState<string | null>(null);
+    const [filters, setFilters] = useState<string[]>([]);
     const [maintState, maintActions] = useMaintenance({ devices, run, refresh });
     const unidentifiedCount = devices.filter(d => !d.manufacturer).length;
 
-    // Only offer a filter that would actually select something, and drop a filter that
-    // stops matching (e.g. the last offline device came back) rather than showing none
-    const available = DeviceFilters
-        .map(entry => ({ ...entry, count: devices.filter(entry.matches).length }))
-        .filter(entry => entry.count > 0 && entry.count < devices.length);
-
-    const active = available.find(entry => entry.key === filter);
-    const shown = active ? devices.filter(active.matches) : devices;
+    const shown = applyFilters(devices, DeviceFilters, filters);
 
     const control = async (nodeId: number, action: DeviceAction, level?: number): Promise<void> => {
         if (await run(() => api.controlDevice(nodeId, { action, level }))) {
@@ -74,9 +59,11 @@ export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
         <section>
             <div className="panel-head">
                 <h2>Devices</h2>
-                {including
-                    ? <button className="warn" onClick={() => void stopInclusion()}>Stop inclusion</button>
-                    : (
+                <div className="panel-head-tools">
+                    <FilterMenu options={DeviceFilters} items={devices} selected={filters} onChange={setFilters} />
+                    {including
+                        ? <button className="warn" onClick={() => void stopInclusion()}>Stop inclusion</button>
+                        : (
                         <ActionMenu
                             label="Device actions"
                             items={[
@@ -84,36 +71,19 @@ export function DevicesPanel({ devices, run, refresh }: DevicesPanelProps) {
                                 ...maintenanceMenuItems(maintState, maintActions, unidentifiedCount)
                             ]}
                         />
-                    )}
+                        )}
+                </div>
             </div>
 
             {including && <div className="banner status">Inclusion is active — activate pairing on the physical device now.</div>}
 
             <MaintenanceStatus state={maintState} actions={maintActions} />
 
-            {available.length > 1 && (
-                <div className="filters" role="group" aria-label="Filter devices">
-                    <button
-                        className={filter === null ? 'chip active' : 'chip'}
-                        onClick={() => setFilter(null)}
-                    >
-                        All <span className="chip-count">{devices.length}</span>
-                    </button>
-                    {available.map(entry => (
-                        <button
-                            key={entry.key}
-                            className={filter === entry.key ? 'chip active' : 'chip'}
-                            onClick={() => setFilter(current => (current === entry.key ? null : entry.key))}
-                        >
-                            {entry.label} <span className="chip-count">{entry.count}</span>
-                        </button>
-                    ))}
-                </div>
-            )}
-
             {devices.length === 0
                 ? <p className="muted">No devices yet. Use “Add device” and pair a switch or dimmer.</p>
-                : (
+                : shown.length === 0
+                    ? <p className="muted">No devices match the current filter.</p>
+                    : (
                     <ul className="cards">
                         {shown.map(device => (
                             <DeviceCard key={device.nodeId} device={device} onControl={control} run={run} refresh={refresh} />

@@ -121,6 +121,9 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      reached from a fixed **bottom nav bar** (`.bottom-nav` in `App.tsx`), not top tabs.
    - `App` owns the polled state (devices, rooms, scenes, scene status, health) on one
      5s interval and passes it down; panels don't fetch their own.
+   - Dashboard cards and scene tiles are **one per row at every width** (`.dash-grid` /
+     `.scene-tiles` are single-column) — the same rhythm as the device list, rather than
+     a masonry that reflows with the window.
    - Dashboard cards are read-only roll-ups: no per-tile navigation (the bottom bar
      covers that) and no controls (room tiles report state; the Rooms view switches
      things). Deliberately fixed-height rather than per-device lists: devices-at-a-glance + total power; a **health** summary (state + responding
@@ -140,9 +143,10 @@ Build tooling (`docker/`, `configs/imageConfig.json`, root `.scripts/dockerBuild
      sits below the instruments in labelled blocks (What to do / Why / Readings) —
      out of the way but in plain sight.
      `HealthSummaryCard` is the dashboard's one-line version of the same data.
-   - The Devices view has filter chips built from `DeviceFilters`: a chip only appears
-     when it would select some but not all devices, so the row grows with the network
-     (Metered/Battery/Unidentified show up only once such a device exists).
+   - The Devices view filters through `panels/FilterMenu.tsx`: a fixed checkbox dropdown
+     (the option set never changes — only the counts beside it do), OR within a group and
+     AND across groups. Controls that rearrange themselves under the user are a
+     deliberate non-goal here.
    - The Scenes view is activation-first: scenes are grouped under their room label
      (`groupScenesByRoom`; `roomId` is only a label, so unlabelled scenes group last) and
      each tile *is* the Activate button, showing the name plus one meta line. The device

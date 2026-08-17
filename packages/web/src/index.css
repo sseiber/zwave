@@ -354,8 +354,10 @@ button:disabled:hover { border-color: var(--border); }
 
 /* Dashboard */
 .dash-grid {
+    /* One card per row at every width — the same rhythm as the device list, rather
+       than a masonry that reflows as the window changes */
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: 1fr;
     gap: 0.75rem;
     align-items: start;
 }
@@ -685,7 +687,7 @@ button:disabled:hover { border-color: var(--border); }
     padding: 0;
     margin: 0;
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    grid-template-columns: 1fr;
     gap: 0.5rem;
 }
 .scene-tile {
@@ -887,12 +889,36 @@ button:disabled:hover { border-color: var(--border); }
     border: 1px dashed var(--border);
     border-radius: 8px;
 }
+.chart-body { display: flex; align-items: stretch; gap: 0.4rem; }
 .health-chart svg {
     display: block;
-    width: 100%;
-    height: 6rem;
+    flex: 1;
+    min-width: 0;
+    height: 6.5rem;
     background: transparent;
 }
+/* Left scale is the noise floor, right scale is response time */
+.chart-scale {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    font-size: 0.62rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    flex: none;
+    padding: 0;
+    line-height: 1;
+}
+.chart-scale.left { text-align: right; }
+.chart-scale.right { text-align: left; }
+.chart-units {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.62rem;
+    padding: 0.15rem 0.1rem 0;
+    letter-spacing: 0.02em;
+}
+.legend-range { font-size: 0.68rem; }
 .chart-grid { stroke: var(--panel-border); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .chart-line {
     fill: none;
@@ -1081,3 +1107,55 @@ button:disabled:hover { border-color: var(--border); }
     font-variant-numeric: tabular-nums;
     margin-left: 0.15rem;
 }
+
+/* Filter dropdown */
+.panel-head-tools { display: flex; align-items: center; gap: 0.4rem; }
+.filter-menu { position: relative; }
+.filter-trigger { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); }
+.filter-trigger.active { color: var(--accent); border-color: var(--accent); }
+/* A funnel, drawn from a triangle and a stem */
+.funnel {
+    width: 0.8rem;
+    height: 0.8rem;
+    flex: none;
+    background: currentColor;
+    clip-path: polygon(0 0, 100% 0, 62% 45%, 62% 100%, 38% 82%, 38% 45%);
+}
+.filter-count {
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    padding: 0 0.3rem;
+    min-width: 1.1rem;
+    text-align: center;
+}
+.filter-panel {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    z-index: 25;
+    min-width: 14rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 10px 26px rgb(0 0 0 / 18%);
+    padding: 0.5rem 0.6rem;
+    display: grid;
+    gap: 0.6rem;
+}
+.filter-group { border: none; padding: 0; margin: 0; display: grid; gap: 0.1rem; }
+.filter-group legend {
+    padding: 0;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    font-weight: 600;
+}
+.filter-option { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; margin: 0; cursor: pointer; }
+.filter-option input { width: auto; margin: 0; }
+.filter-option-label { flex: 1; font-size: 0.85rem; }
+.filter-option-count { font-size: 0.75rem; font-variant-numeric: tabular-nums; }
+.filter-actions { display: flex; justify-content: flex-end; border-top: 1px solid var(--border); padding-top: 0.4rem; }

@@ -165,7 +165,16 @@ function HealthChart({ samples }: { samples: IHealthSample[] }) {
 
     return (
         <div className="health-chart">
-            <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+            <div className="chart-body">
+                {/* Noise reads against the left scale, response against the right; the
+                    error line has no axis of its own — its range is in the legend. */}
+                <div className="chart-scale left" aria-hidden="true">
+                    <span>{NoiseCeilingDbm}</span>
+                    <span>{(NoiseCeilingDbm + NoiseFloorDbm) / 2}</span>
+                    <span>{NoiseFloorDbm}</span>
+                </div>
+
+                <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
                 {[0.25, 0.5, 0.75].map(fraction => (
                     <line key={fraction} className="chart-grid" x1={0} x2={width} y1={height * fraction} y2={height * fraction} />
                 ))}
@@ -181,7 +190,19 @@ function HealthChart({ samples }: { samples: IHealthSample[] }) {
                 {paths.map(({ series, points }) => (
                     <polyline key={series.key} className={`chart-line ${series.className}`} points={points.join(' ')} />
                 ))}
-            </svg>
+                </svg>
+
+                <div className="chart-scale right" aria-hidden="true">
+                    <span>{ResponseCeilingMs}</span>
+                    <span>{ResponseCeilingMs / 2}</span>
+                    <span>0</span>
+                </div>
+            </div>
+
+            <div className="chart-units muted">
+                <span>Noise dBm</span>
+                <span>Response ms</span>
+            </div>
 
             <div className="chart-axis muted">
                 <span>{clockTime(new Date(first.at).getTime())}</span>
@@ -204,9 +225,10 @@ function Legend({ latest }: { latest: IHealthSample | undefined }) {
                 <span className="swatch" aria-hidden="true" />
                 Noise <strong>{latest.noise !== undefined ? `${latest.noise} dBm` : '—'}</strong>
             </li>
-            <li className="errors">
+            <li className="errors" title={`Plotted against a 0-${Math.round(ErrorCeiling * 100)}% range`}>
                 <span className="swatch" aria-hidden="true" />
                 Errors <strong>{Math.round(latest.errorRate * 100)}%</strong>
+                <span className="muted legend-range">of 0-{Math.round(ErrorCeiling * 100)}%</span>
             </li>
             <li className="response">
                 <span className="swatch" aria-hidden="true" />

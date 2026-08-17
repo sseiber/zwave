@@ -73,7 +73,9 @@ export function RoomsPanel({ rooms, devices, run, refresh, refreshDevices }: Roo
                             <li key={room.id} className="card">
                                 <div className="card-head">
                                     <span className="name">{room.name}</span>
-                                    <span className="pill">{room.deviceIds.length} device{room.deviceIds.length === 1 ? '' : 's'}</span>
+                                    <span className={`pill${onCount(room, devices) > 0 ? ' on' : ''}`}>
+                                        {room.deviceIds.length} device{room.deviceIds.length === 1 ? '' : 's'} · {onCount(room, devices)} on
+                                    </span>
                                 </div>
                                 <div className="meta">
                                     {room.deviceIds.length === 0
@@ -95,6 +97,11 @@ export function RoomsPanel({ rooms, devices, run, refresh, refreshDevices }: Roo
                 )}
         </section>
     );
+}
+
+// How many of a room's devices are currently on
+function onCount(room: IRoom, devices: IDeviceInfo[]): number {
+    return room.deviceIds.filter(id => devices.some(device => device.nodeId === id && device.on === true)).length;
 }
 
 function deviceName(devices: IDeviceInfo[], nodeId: number): string {
