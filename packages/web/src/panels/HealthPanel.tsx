@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import type { IHealthSample, IHealthSweep, INetworkHealth, INodeHealth } from '@zwave-service/contracts';
-import { HealthState, NodeHealthState } from '@zwave-service/contracts';
+import { NodeHealthState } from '@zwave-service/contracts';
 import { relativeTime, absoluteTime, clockTime } from '../format.ts';
+import { toneFor, stateLabel, nodeTone, nodeRank } from '../health.ts';
 
 //
 // Health — a dedicated view rather than a card squeezed onto the dashboard.
@@ -72,29 +73,6 @@ export function HealthPanel({ health }: { health: INetworkHealth | null }) {
 
             <Notes health={health} />
         </section>
-    );
-}
-
-// Compact summary for the dashboard: the conclusion, and a way through to the detail
-export function HealthSummaryCard({ health }: { health: INetworkHealth | null }) {
-    return (
-        <div className={`card dash-card health-summary${health ? ` ${toneFor(health.state)}` : ''}`}>
-            <div className="dash-card-head">
-                <h3>Health</h3>
-            </div>
-
-            {health
-                ? (
-                    <div className="health-summary-body">
-                        <span className={`health-state ${toneFor(health.state)}`}>
-                            <span className="state-dot" aria-hidden="true" />
-                            {stateLabel(health.state)}
-                        </span>
-                        <span className="muted">{health.devices.responding}/{health.devices.total} devices responding</span>
-                    </div>
-                )
-                : <p className="muted">Taking the first reading…</p>}
-        </div>
     );
 }
 
@@ -439,52 +417,6 @@ function Reading({ label, value, title }: { label: string; value: string; title?
 
 function round2(value: number): number {
     return Math.round(value * 100) / 100;
-}
-
-function toneFor(state: HealthState): string {
-    return state === HealthState.Good ? 'good' : state === HealthState.Fair ? 'warn' : 'bad';
-}
-
-// Phrased as a conclusion the user can act on, not a grade they have to interpret
-function stateLabel(state: HealthState): string {
-    switch (state) {
-        case HealthState.Good:
-            return 'Working normally';
-        case HealthState.Fair:
-            return 'One thing to check';
-        default:
-            return 'Action needed';
-    }
-}
-
-function nodeTone(state: NodeHealthState): string {
-    switch (state) {
-        case NodeHealthState.Good:
-            return 'good';
-        case NodeHealthState.Fair:
-        case NodeHealthState.Poor:
-            return 'warn';
-        case NodeHealthState.Offline:
-            return 'bad';
-        default:
-            return 'unknown';
-    }
-}
-
-// Worst first, so the strip reads left-to-right as problems then healthy devices
-function nodeRank(state: NodeHealthState): number {
-    switch (state) {
-        case NodeHealthState.Offline:
-            return 0;
-        case NodeHealthState.Poor:
-            return 1;
-        case NodeHealthState.Fair:
-            return 2;
-        case NodeHealthState.Good:
-            return 3;
-        default:
-            return 4;
-    }
 }
 
 // Tooltip for a device dot: whatever has actually been measured about it

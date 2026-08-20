@@ -57,7 +57,13 @@ sheet held 25 spacing values and 24 font sizes, with almost all text between 0.6
 - **One card per row** at every width (`.dash-grid`, `.scene-tiles`), matching the
   device list. No masonry that reflows as the window changes.
 - **One place per action.** The bottom nav reaches every view, so cards carry no
-  navigation links. Dashboard cards report; the section views act.
+  navigation links. Dashboard cards report; the section views act. The views name
+  themselves, so there is no standing app title above them.
+- **A fact appears once per screen.** The Dashboard used to carry "23/23 responding" and
+  "Offline: 0" on two different cards. Same fact, twice the reading.
+- **The verdict is not a card.** "Is anything wrong?" is the page speaking, so it sits
+  above the cards without chrome — and it is the only thing on the home screen that
+  changes colour.
 - **Colour means status.** Cards carry an accent edge at rest; amber or red appears only
   when something actually needs attention.
 

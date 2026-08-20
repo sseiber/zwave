@@ -179,9 +179,7 @@ export function App() {
 
     return (
         <div className="app">
-            <header>
-                <h1>Z-Wave Control</h1>
-            </header>
+            <h1 className="sr-only">Z-Wave Control</h1>
 
             {loading
                 ? <p className="muted">Loading…</p>

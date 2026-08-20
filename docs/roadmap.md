@@ -27,6 +27,7 @@
 | 1.20.0 - 1.22.0 | Health as a live chart, then its own view with tappable device dots |
 | 1.23.0 - 1.25.0 | Dashboard cleanup, device filters, chart axes, health recalibration |
 | 1.26.0 | Space and calm pass 1 — one spacing scale, one type scale, shared group labels |
+| 1.27.0 | Space and calm pass 2 — Dashboard: verdict hero + three cards, drawn device roll-up |
 
 Plus a tested live-backup script (`setup/deployment/zwave-backup.sh`) and its SIGPIPE
 fix. Build/deploy/git conventions are in [CLAUDE.md](../CLAUDE.md); the web UI lives in
@@ -187,8 +188,13 @@ features, and without going back on
 
 The problem, view by view (worth re-checking on the tablet before starting):
 
-- **Dashboard** — four stacked cards, each with its own internal density. Health,
-  Devices, Rooms, Schedule all compete at the same visual weight.
+- ~~**Dashboard** — four stacked cards, each with its own internal density. Health,
+  Devices, Rooms, Schedule all compete at the same visual weight.~~ **Done in 1.27.0:**
+  the verdict became the page's own headline (no card chrome, the only thing on the
+  screen that changes colour), Health and Devices merged into one **Now** card — they
+  were reporting one fact twice — and the device roll-up is drawn as a dot per device
+  rather than counted in a sentence. The app-wide `<h1>` went with it: every view names
+  itself and the bottom bar says where you are.
 - **Health** — chart, axes, legend, dot strip, sweep line, device meters and three note
   blocks in one scroll.
 - **Devices** — every device is a card with controls plus an expandable Details holding
@@ -204,8 +210,8 @@ Directions to consider (none decided):
   (the scene-tile chevron pattern is the established one).
 - Larger type for the few numbers that matter, smaller/quieter everything else.
 - Section headers or dividers to give the eye somewhere to rest between groups.
-- Reconsider whether the dashboard needs all four cards, or whether some of it belongs
-  only in its own view.
+- ~~Reconsider whether the dashboard needs all four cards, or whether some of it belongs
+  only in its own view.~~ **Answered in 1.27.0: three cards and a hero.**
 
 Constraints that must survive: one card per row, controls that don't morph, touch
 targets, scroll-beats-press, and instruments over prose.
