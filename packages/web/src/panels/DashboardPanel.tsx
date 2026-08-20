@@ -1,9 +1,24 @@
 import { useState } from 'react';
-import type { IDeviceInfo, INetworkHealth, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
+import type { IDeviceInfo, INetworkHealth, INodeHealth, IRoom, IScene, ISceneStatus } from '@zwave-service/contracts';
 import { DeviceAction, DeviceStatus } from '@zwave-service/contracts';
 import { describeSchedule } from '../schedule.ts';
-import { HealthSummaryCard } from './HealthPanel.tsx';
-import { relativeTime, relativeUpcoming, absoluteTime, clockTime, round } from '../format.ts';
+import { toneFor, stateLabel, nodeTone, nodeRank } from '../health.ts';
+import { relativeTime, relativeUpcoming, absoluteTime, round } from '../format.ts';
+
+//
+// The home screen. Read top to bottom it answers three questions in order of urgency:
+// is anything wrong (the hero verdict), what is on right now (Now), and what happens
+// next (Rooms, then Schedule).
+//
+// It used to be four cards of equal weight, and two of them said the same thing —
+// "23/23 devices responding" on the Health card and "Offline: 0" on the Devices card
+// are one fact wearing two hats. The verdict is now the page's own headline rather
+// than a card competing with the others, and the device roll-up is drawn (a dot per
+// device) instead of counted in a sentence.
+//
+// Still read-only: no navigation off the cards (the bottom bar does that) and no
+// controls (the Rooms view switches things).
+//
 
 interface DashboardPanelProps {
     devices: IDeviceInfo[];
@@ -26,13 +41,15 @@ export function DashboardPanel({ devices, health, rooms, scenes, statuses }: Das
 
     return (
         <section className="dashboard">
+            <Verdict health={health} />
+
             <div className="dash-grid">
-                <HealthSummaryCard health={health} />
-                <GlanceCard
+                <NowCard
                     total={devices.length}
                     on={onCount}
                     offline={offlineCount}
                     totalWatts={hasPower ? totalWatts : undefined}
+                    nodes={health?.nodes}
                 />
                 <RoomsCard rooms={rooms} devices={devices} />
                 <ScheduleCard scenes={scenes} statuses={statuses} devices={devices} />
@@ -41,44 +58,100 @@ export function DashboardPanel({ devices, health, rooms, scenes, statuses }: Das
     );
 }
 
-interface GlanceCardProps {
-    total: number;
-    on: number;
-    offline: number;
-    totalWatts: number | undefined;
-}
+//
+// Verdict — the top of the screen, and the only place on it that changes colour
+//
+// Deliberately not a card: it is the answer to "is everything alright?", so it reads as
+// the page speaking rather than as one more box among boxes.
+//
 
-function GlanceCard({ total, on, offline, totalWatts }: GlanceCardProps) {
-    return (
-        <div className="card dash-card">
-            <div className="dash-card-head">
-                <h3>Devices</h3>
+function Verdict({ health }: { health: INetworkHealth | null }) {
+    if (!health) {
+        return (
+            <div className="dash-hero">
+                <span className="dash-hero-state muted">Taking the first reading…</span>
             </div>
-            {total === 0
-                ? <p className="muted">No devices yet. Add a switch or dimmer from Devices.</p>
-                : (
-                    <div className="stats">
-                        <Stat label="Total" value={String(total)} />
-                        <Stat label="On" value={String(on)} tone="on" />
-                        <Stat label="Offline" value={String(offline)} tone={offline > 0 ? 'bad' : undefined} />
-                        {totalWatts !== undefined && <Stat label="Power" value={`${round(totalWatts)} W`} tone="accent" />}
-                    </div>
-                )}
-        </div>
-    );
-}
+        );
+    }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: 'on' | 'bad' | 'accent' }) {
+    const tone = toneFor(health.state);
+
     return (
-        <div className={`stat${tone ? ` ${tone}` : ''}`}>
-            <span className="stat-value">{value}</span>
-            <span className="stat-label">{label}</span>
+        <div className={`dash-hero ${tone}`}>
+            <span className={`dash-hero-state ${tone}`}>
+                <span className="state-dot" aria-hidden="true" />
+                {stateLabel(health.state)}
+            </span>
+            <p className="dash-hero-headline">{health.headline}</p>
         </div>
     );
 }
 
 //
-// Rooms — one tile per room, tapped to toggle the whole room
+// Now — what the house is doing at this moment
+//
+// The numbers worth reading from across the room, then every device as a dot. The dots
+// are the Health view's instrument shown read-only here: all one colour means there is
+// nothing to go and look at, which no sentence conveys as fast.
+//
+
+interface NowCardProps {
+    total: number;
+    on: number;
+    offline: number;
+    totalWatts: number | undefined;
+    nodes: INodeHealth[] | undefined;
+}
+
+function NowCard({ total, on, offline, totalWatts, nodes }: NowCardProps) {
+    const ranked = nodes ? [...nodes].sort((a, b) => nodeRank(a.state) - nodeRank(b.state)) : [];
+
+    return (
+        <div className="card dash-card">
+            <div className="dash-card-head">
+                <h3>Now</h3>
+            </div>
+            {total === 0
+                ? <p className="muted">No devices yet. Add a switch or dimmer from Devices.</p>
+                : (
+                    <>
+                        <div className="stats">
+                            <Stat label="On" value={String(on)} sub={`of ${total}`} tone={on > 0 ? 'on' : undefined} />
+                            {totalWatts !== undefined && <Stat label="Drawing" value={round(totalWatts, 0)} sub="watts" tone="accent" />}
+                            <Stat label="Offline" value={String(offline)} tone={offline > 0 ? 'bad' : undefined} />
+                        </div>
+
+                        {ranked.length > 0 && (
+                            <div className="dash-dots" aria-label={`${ranked.length} devices`}>
+                                {ranked.map(node => (
+                                    <span
+                                        key={node.nodeId}
+                                        className={`mesh-dot ${nodeTone(node.state)}`}
+                                        title={node.name}
+                                    />
+                                ))}
+                            </div>
+                        )}
+                    </>
+                )}
+        </div>
+    );
+}
+
+function Stat({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'on' | 'bad' | 'accent' }) {
+    return (
+        <div className={`stat${tone ? ` ${tone}` : ''}`}>
+            <span className="stat-label">{label}</span>
+            <span className="stat-value">
+                {value}
+                {sub && <span className="stat-sub">{sub}</span>}
+            </span>
+        </div>
+    );
+}
+
+//
+// Rooms — one tile per room, reporting what is on in it
 //
 
 interface RoomsCardProps {
@@ -232,9 +305,9 @@ function ScheduleCard({ scenes, statuses, devices }: ScheduleCardProps) {
                             ))}
                             <span className="timeline-now" style={{ left: '50%' }} aria-hidden="true" />
                             <div className="timeline-scale">
-                                <span>{clockTime(start)}</span>
+                                <span title={absoluteTime(new Date(start).toISOString())}>{span(reach)} back</span>
                                 <span className="timeline-now-label">now</span>
-                                <span>{clockTime(end)}</span>
+                                <span title={absoluteTime(new Date(end).toISOString())}>{span(reach)} ahead</span>
                             </div>
                         </div>
 
@@ -277,6 +350,15 @@ function ScheduleCard({ scenes, statuses, devices }: ScheduleCardProps) {
                 )}
         </div>
     );
+}
+
+// How far the timeline reaches on each side of "now". The window can easily span two
+// days, which is what made clock-only end labels read as nonsense — "11:54 AM ... now
+// ... 9:54 AM" — so the strip says how far it reaches instead of naming two times.
+function span(ms: number): string {
+    const hours = Math.round(ms / 3600000);
+
+    return hours < 24 ? `${Math.max(1, hours)}h` : `${Math.round(hours / 24)}d`;
 }
 
 // When a run happened / will happen, phrased for its direction
