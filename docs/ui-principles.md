@@ -33,6 +33,22 @@ The app is an instrument panel, not documentation. Repeated feedback: prose is c
 - **Say what to do, including "nothing".** A working mesh of older devices should be
   told it is fine, not handed a score to interpret.
 
+## One rhythm
+
+Spacing and type come from scales declared once in `:root` (`--s-1`…`--s-6`,
+`--t-micro`…`--t-num`), not from numbers chosen at each call site. Before them the
+sheet held 25 spacing values and 24 font sizes, with almost all text between 0.6 and
+0.9rem — which is what "cluttered" looked like in CSS.
+
+- **Pick a step, don't invent a value.** If nothing fits, add a step; a one-off number
+  is how the drift started.
+- **Rhythm is not geometry.** Dot diameters, timeline offsets and meter track widths
+  are drawing, and stay literal.
+- **Body text is 0.95rem at 1.5 line-height.** Sizes below `--t-micro` (0.75rem) are
+  for badges, not for anything anyone has to read.
+- **One label treatment.** The quiet uppercase name over a group is a single rule
+  shared by every view.
+
 ## Predictable controls
 
 - **Controls do not morph.** Filter options are a fixed checkbox set — only the counts
