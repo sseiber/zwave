@@ -26,6 +26,7 @@
 | 1.18.0 - 1.19.0 | Composite network health (score + reasons + background sweep) |
 | 1.20.0 - 1.22.0 | Health as a live chart, then its own view with tappable device dots |
 | 1.23.0 - 1.25.0 | Dashboard cleanup, device filters, chart axes, health recalibration |
+| 1.26.0 | Space and calm pass 1 — one spacing scale, one type scale, shared group labels |
 
 Plus a tested live-backup script (`setup/deployment/zwave-backup.sh`) and its SIGPIPE
 fix. Build/deploy/git conventions are in [CLAUDE.md](../CLAUDE.md); the web UI lives in
@@ -178,7 +179,8 @@ together.
 
 # Next phase — mobile space and calm
 
-**Not started.** The views work, but a lot is packed into each one. The next pass is
+**In progress (pass 1 shipped in 1.26.0: the spacing/type scales — see
+[One rhythm](ui-principles.md#one-rhythm)).** The views work, but a lot is packed into each one. The next pass is
 about *space*: making the mobile screen easier to read and use without losing any of the
 features, and without going back on
 [docs/ui-principles.md](ui-principles.md).
@@ -196,8 +198,8 @@ The problem, view by view (worth re-checking on the tablet before starting):
 
 Directions to consider (none decided):
 
-- A consistent vertical rhythm and one spacing scale across cards, rather than
-  per-component padding chosen ad hoc.
+- ~~A consistent vertical rhythm and one spacing scale across cards, rather than
+  per-component padding chosen ad hoc.~~ **Done in 1.26.0.**
 - Fewer things visible at once per view: progressive disclosure that is predictable
   (the scene-tile chevron pattern is the established one).
 - Larger type for the few numbers that matter, smaller/quieter everything else.
