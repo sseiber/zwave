@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { IHealthSample, IHealthSweep, INetworkHealth, INodeHealth } from '@zwave-service/contracts';
 import { NodeHealthState } from '@zwave-service/contracts';
-import { relativeTime, absoluteTime, clockTime } from '../format.ts';
+import { relativeTime, absoluteTime } from '../format.ts';
 import { toneFor, stateLabel, nodeTone, nodeRank } from '../health.ts';
 
 //
@@ -57,8 +57,12 @@ export function HealthPanel({ health }: { health: INetworkHealth | null }) {
                 </span>
             </div>
 
-            <HealthChart samples={health.samples} />
-            <Legend latest={health.samples.at(-1)} />
+            <Trend samples={health.samples} />
+
+            {/* One resting point for the eye between the trends and the devices; without
+                it the dots, the sweep line and a card suddenly named "Patio" read as
+                three unrelated things rather than one instrument you tap. */}
+            <h3 className="health-section-head">Devices</h3>
 
             <DeviceStrip
                 nodes={ranked}
@@ -77,143 +81,117 @@ export function HealthPanel({ health }: { health: INetworkHealth | null }) {
 }
 
 //
-// Chart
+// Trends
+//
+// Three sparklines, one per series, rather than one plot carrying all three against two
+// different axes. Sharing a plot meant noise (dBm), errors (%) and response time (ms)
+// were drawn on scales that have nothing to do with each other, and they all bunched
+// along the bottom on top of one another — the old chart had a left axis, a right axis,
+// a units row and a colour legend and still could not be read at a glance.
+//
+// Split apart they need none of that machinery: each row is `label - instrument -
+// value`, the same grammar as the device meters below, so the whole view reads as one
+// instrument panel instead of a chart followed by some meters.
 //
 
-interface SeriesSpec {
+interface TrendSpec {
     key: string;
-    className: string;
+    label: string;
     // Value for a sample, or undefined where the series has no reading
     value: (sample: IHealthSample) => number | undefined;
-    // Map a value into 0 (bottom) - 1 (top)
+    // Map a value into 0 (bottom of the row) - 1 (top)
     scale: (value: number) => number;
-    area?: boolean;
+    // The current value, written out with its unit
+    format: (value: number) => string;
 }
 
-const Series: SeriesSpec[] = [
+// Ranges are fixed rather than fitted to what has been seen. A series that auto-scaled
+// would make a quiet mesh's noise wander dramatically across the row; against a fixed
+// range, a flat line low down means "almost nothing", which is the truth worth showing.
+const Trends: TrendSpec[] = [
     {
         key: 'noise',
-        className: 'noise',
+        label: 'Noise',
         value: sample => sample.noise,
         scale: value => (value - NoiseFloorDbm) / (NoiseCeilingDbm - NoiseFloorDbm),
-        area: true
+        format: value => `${Math.round(value)} dBm`
     },
     {
         key: 'errors',
-        className: 'errors',
+        label: 'Errors',
         value: sample => sample.errorRate,
-        scale: value => value / ErrorCeiling
+        scale: value => value / ErrorCeiling,
+        format: value => `${Math.round(value * 100)}%`
     },
     {
         key: 'response',
-        className: 'response',
+        label: 'Reply',
         value: sample => sample.responseMs,
-        scale: value => value / ResponseCeilingMs
+        scale: value => value / ResponseCeilingMs,
+        format: value => `${Math.round(value)} ms`
     }
 ];
 
-// Noise floor, errors and response time over the retained window. Drawn by hand in SVG
-// — three series, no library: the shape is the point, and the legend carries the value.
-function HealthChart({ samples }: { samples: IHealthSample[] }) {
+function Trend({ samples }: { samples: IHealthSample[] }) {
     if (samples.length < 2) {
         return <div className="health-chart empty muted">Collecting readings…</div>;
     }
 
-    const width = 300;
-    const height = 110;
-
-    const x = (index: number): number => (index / (samples.length - 1)) * width;
-    const y = (unit: number): number => height - Math.max(0, Math.min(1, unit)) * height;
-
-    const paths = Series.map((series) => {
-        // Gaps matter: a series with no reading yet should not draw a line along zero
-        const points = samples
-            .map((sample, index) => {
-                const value = series.value(sample);
-
-                return value === undefined ? undefined : `${round2(x(index))},${round2(y(series.scale(value)))}`;
-            })
-            .filter((point): point is string => point !== undefined);
-
-        return { series, points };
-    }).filter(entry => entry.points.length > 1);
-
-    const first = samples[0];
-    const middle = samples[Math.floor(samples.length / 2)];
-
     return (
         <div className="health-chart">
-            <div className="chart-body">
-                {/* Noise reads against the left scale, response against the right; the
-                    error line has no axis of its own — its range is in the legend. */}
-                <div className="chart-scale left" aria-hidden="true">
-                    <span>{NoiseCeilingDbm}</span>
-                    <span>{(NoiseCeilingDbm + NoiseFloorDbm) / 2}</span>
-                    <span>{NoiseFloorDbm}</span>
-                </div>
+            {Trends.map(trend => <TrendRow key={trend.key} trend={trend} samples={samples} />)}
 
-                <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
-                {[0.25, 0.5, 0.75].map(fraction => (
-                    <line key={fraction} className="chart-grid" x1={0} x2={width} y1={height * fraction} y2={height * fraction} />
-                ))}
-
-                {paths.filter(({ series }) => series.area).map(({ series, points }) => (
-                    <polygon
-                        key={`${series.key}-area`}
-                        className={`chart-area ${series.className}`}
-                        points={`0,${height} ${points.join(' ')} ${width},${height}`}
-                    />
-                ))}
-
-                {paths.map(({ series, points }) => (
-                    <polyline key={series.key} className={`chart-line ${series.className}`} points={points.join(' ')} />
-                ))}
-                </svg>
-
-                <div className="chart-scale right" aria-hidden="true">
-                    <span>{ResponseCeilingMs}</span>
-                    <span>{ResponseCeilingMs / 2}</span>
-                    <span>0</span>
-                </div>
-            </div>
-
-            <div className="chart-units muted">
-                <span>Noise dBm</span>
-                <span>Response ms</span>
-            </div>
-
-            <div className="chart-axis muted">
-                <span>{clockTime(new Date(first.at).getTime())}</span>
-                <span>{clockTime(new Date(middle.at).getTime())}</span>
-                <span>Now</span>
+            <div className="trend-axis muted">
+                <span>{spanLabel(samples)} ago</span>
+                <span>now</span>
             </div>
         </div>
     );
 }
 
-// Current value of each series, colour-matched to its line
-function Legend({ latest }: { latest: IHealthSample | undefined }) {
-    if (!latest) {
-        return null;
-    }
+function TrendRow({ trend, samples }: { trend: TrendSpec; samples: IHealthSample[] }) {
+    const width = 100;
+    const height = 24;
+
+    // Gaps matter: a series with no reading yet must not draw a line along zero
+    const points = samples
+        .map((sample, index) => {
+            const value = trend.value(sample);
+            if (value === undefined) {
+                return undefined;
+            }
+
+            const x = (index / (samples.length - 1)) * width;
+            const y = height - clamp01(trend.scale(value)) * height;
+
+            return `${round2(x)},${round2(y)}`;
+        })
+        .filter((point): point is string => point !== undefined);
+
+    const latest = [...samples].reverse().map(trend.value).find(value => value !== undefined);
 
     return (
-        <ul className="chart-legend">
-            <li className="noise">
-                <span className="swatch" aria-hidden="true" />
-                Noise <strong>{latest.noise !== undefined ? `${latest.noise} dBm` : '—'}</strong>
-            </li>
-            <li className="errors" title={`Plotted against a 0-${Math.round(ErrorCeiling * 100)}% range`}>
-                <span className="swatch" aria-hidden="true" />
-                Errors <strong>{Math.round(latest.errorRate * 100)}%</strong>
-                <span className="muted legend-range">of 0-{Math.round(ErrorCeiling * 100)}%</span>
-            </li>
-            <li className="response">
-                <span className="swatch" aria-hidden="true" />
-                Response <strong>{latest.responseMs !== undefined ? `${latest.responseMs} ms` : '—'}</strong>
-            </li>
-        </ul>
+        <div className="trend-row">
+            <span className="meter-label">{trend.label}</span>
+            <span className={`trend-spark ${trend.key}`}>
+                {points.length > 1 && (
+                    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+                        <polygon className="trend-area" points={`0,${height} ${points.join(' ')} ${width},${height}`} />
+                        <polyline className="trend-line" points={points.join(' ')} />
+                    </svg>
+                )}
+            </span>
+            <span className="meter-value">{latest === undefined ? '—' : trend.format(latest)}</span>
+        </div>
     );
+}
+
+// How far back the retained samples reach
+function spanLabel(samples: IHealthSample[]): string {
+    const ms = new Date(samples[samples.length - 1].at).getTime() - new Date(samples[0].at).getTime();
+    const minutes = Math.round(ms / 60000);
+
+    return minutes < 90 ? `${Math.max(1, minutes)}m` : `${Math.round(minutes / 60)}h`;
 }
 
 //
@@ -381,7 +359,7 @@ function Notes({ health }: { health: INetworkHealth }) {
                             <li key={factor.label}>
                                 <span className="health-factor-label">{factor.label}</span>
                                 {factor.detail && <span className="muted health-factor-detail">{factor.detail}</span>}
-                                {factor.suggestion && <span className="muted health-factor-detail">{factor.suggestion}</span>}
+                                {factor.suggestion && <span className="health-factor-do">{factor.suggestion}</span>}
                             </li>
                         ))}
                     </ul>

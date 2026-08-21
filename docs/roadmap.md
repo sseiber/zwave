@@ -28,6 +28,7 @@
 | 1.23.0 - 1.25.0 | Dashboard cleanup, device filters, chart axes, health recalibration |
 | 1.26.0 | Space and calm pass 1 — one spacing scale, one type scale, shared group labels |
 | 1.27.0 | Space and calm pass 2 — Dashboard: verdict hero + three cards, drawn device roll-up |
+| 1.28.0 | Space and calm pass 3 — Health: one chart split into three sparkline rows |
 
 Plus a tested live-backup script (`setup/deployment/zwave-backup.sh`) and its SIGPIPE
 fix. Build/deploy/git conventions are in [CLAUDE.md](../CLAUDE.md); the web UI lives in
@@ -195,8 +196,11 @@ The problem, view by view (worth re-checking on the tablet before starting):
   were reporting one fact twice — and the device roll-up is drawn as a dot per device
   rather than counted in a sentence. The app-wide `<h1>` went with it: every view names
   itself and the bottom bar says where you are.
-- **Health** — chart, axes, legend, dot strip, sweep line, device meters and three note
-  blocks in one scroll.
+- ~~**Health** — chart, axes, legend, dot strip, sweep line, device meters and three note
+  blocks in one scroll.~~ **Done in 1.28.0:** the one dual-axis chart became three
+  sparkline rows sharing the device meters' `label · instrument · value` grammar, which
+  removed the left axis, the right axis, the units row and the colour legend outright.
+  Factors are separated by a rule, and a "Devices" label sits over the dot strip.
 - **Devices** — every device is a card with controls plus an expandable Details holding
   rich state, configuration parameters and maintenance.
 - **Scenes** — tiles plus per-tile detail disclosure; the editor is a long form
