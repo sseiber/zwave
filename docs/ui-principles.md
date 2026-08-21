@@ -76,3 +76,9 @@ sheet held 25 spacing values and 24 font sizes, with almost all text between 0.6
   retuned twice against a real 23-device mesh. Retune there, with real numbers.
 - The background sweep exists so the view is **alive**: one device pinged per minute,
   the swept dot ringed in the UI.
+- **One instrument, one unit.** Noise (dBm), errors (%) and reply time (ms) get a
+  sparkline each rather than sharing a plot against two axes — series on unrelated
+  scales bunch together and read as nothing. Every reading in the view, trend or device,
+  is drawn as `label · instrument · value`.
+- **Round what you show.** A reading rendered straight from the driver will happily
+  print `169.08130580728164 ms`.
