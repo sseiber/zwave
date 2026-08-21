@@ -80,5 +80,14 @@ sheet held 25 spacing values and 24 font sizes, with almost all text between 0.6
   sparkline each rather than sharing a plot against two axes — series on unrelated
   scales bunch together and read as nothing. Every reading in the view, trend or device,
   is drawn as `label · instrument · value`.
-- **Round what you show.** A reading rendered straight from the driver will happily
+- **Round what you show.** A reading rendered straight from a driver value will happily
   print `169.08130580728164 ms`.
+- **The axis is the threshold, not a round number.** Each trend is scaled so the top of
+  the row is the reading the score calls Poor and the dashed line is where it starts to
+  care (`Thresholds` in `services/networkHealth.ts`). Height then means something, and
+  the row spends itself on the range that matters instead of on headroom nothing
+  reaches. All three run **worse-upward**, so low flat lines are a healthy mesh.
+- **Never auto-fit a trend axis to its data.** A mesh sitting at -95 dBm give or take a
+  dB would have that jitter stretched to fill the row, inventing alarm out of nothing.
+  Where "usual for this mesh" genuinely matters, mark the average as a reference line —
+  the service already judges noise that way.

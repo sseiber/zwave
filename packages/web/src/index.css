@@ -904,7 +904,14 @@ button:disabled:hover { border-color: var(--border); }
 }
 @media (prefers-reduced-motion: reduce) { .sweep-pulse { animation: none; } }
 
-/* Trends — three sparklines sharing the meters' label / instrument / value grammar */
+/*
+ * Trends — one small chart per series, scaled to the thresholds behind the verdict.
+ *
+ * Every scale runs worse-upward, so the card can be read without reading anything: low
+ * flat lines are a healthy mesh. The trace carries the status colour (accent at rest,
+ * amber or red once it crosses a threshold), which is why the series no longer need
+ * colours of their own — they are separate, labelled rows now.
+ */
 .health-chart {
     margin: 0 0 var(--s-3);
     border: 1px solid var(--panel-border);
@@ -912,7 +919,7 @@ button:disabled:hover { border-color: var(--border); }
     background: var(--panel);
     padding: var(--s-3);
     display: grid;
-    gap: var(--s-2);
+    gap: var(--s-4);
 }
 .health-chart.empty {
     height: 6rem;
@@ -924,29 +931,66 @@ button:disabled:hover { border-color: var(--border); }
     border-radius: 8px;
 }
 
-/* Same three columns as .meter-row, so a trend and a device reading line up */
-.trend-row { display: flex; align-items: center; gap: var(--s-2); }
-.trend-spark {
-    flex: 1;
-    min-width: 0;
-    height: 1.6rem;
-    display: block;
+.trend { display: grid; gap: var(--s-1); }
+.trend-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-2); }
+.trend-value { font-size: var(--t-body); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent); }
+.trend-value.warn { color: var(--warn); }
+.trend-value.bad { color: #dc2626; }
+
+.trend-body { display: flex; align-items: stretch; gap: var(--s-2); }
+
+/* Tick labels sit against the plot, positioned by value rather than spaced evenly, so
+   the threshold tick lines up with the dashed line it names. */
+.trend-ticks {
+    position: relative;
+    width: 2.4rem;
+    flex: none;
+    font-size: var(--t-micro);
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    line-height: 1;
 }
+.trend-ticks span {
+    position: absolute;
+    right: 0;
+    transform: translateY(-50%);
+    white-space: nowrap;
+}
+.trend-ticks .at-threshold { color: var(--warn); }
+/* The top of the scale is the reading the verdict calls bad, so it is labelled as such */
+.trend-ticks .at-poor { color: #dc2626; }
+
+.trend-spark { flex: 1; min-width: 0; height: 4.2rem; display: block; }
 .trend-spark svg { display: block; width: 100%; height: 100%; }
 .trend-line {
     fill: none;
+    stroke: var(--accent);
     stroke-width: 1.5;
     stroke-linejoin: round;
     stroke-linecap: round;
     vector-effect: non-scaling-stroke;
 }
-.trend-area { stroke: none; }
-.trend-spark.noise .trend-line { stroke: var(--accent); }
-.trend-spark.noise .trend-area { fill: color-mix(in srgb, var(--accent) 22%, transparent); }
-.trend-spark.errors .trend-line { stroke: #f59e0b; }
-.trend-spark.errors .trend-area { fill: color-mix(in srgb, #f59e0b 22%, transparent); }
-.trend-spark.response .trend-line { stroke: #a855f7; }
-.trend-spark.response .trend-area { fill: color-mix(in srgb, #a855f7 22%, transparent); }
+.trend-area { stroke: none; fill: color-mix(in srgb, var(--accent) 18%, transparent); }
+.trend-spark.warn .trend-line { stroke: var(--warn); }
+.trend-spark.warn .trend-area { fill: color-mix(in srgb, var(--warn) 18%, transparent); }
+.trend-spark.bad .trend-line { stroke: #dc2626; }
+.trend-spark.bad .trend-area { fill: color-mix(in srgb, #dc2626 18%, transparent); }
+
+/* The line the verdict cares about, and the one where it calls the reading bad */
+.trend-threshold {
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    vector-effect: non-scaling-stroke;
+}
+.trend-threshold.fair { stroke: var(--warn); opacity: 0.75; }
+/* What this series usually sits at — the service judges noise against its own average,
+   so the chart shows the same reference rather than an axis that moves under it. */
+.trend-baseline {
+    stroke: var(--text);
+    stroke-width: 1;
+    opacity: 0.35;
+    vector-effect: non-scaling-stroke;
+}
 
 /* One time axis under the stack, rather than one per series */
 .trend-axis {

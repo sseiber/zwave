@@ -14,13 +14,6 @@ import { toneFor, stateLabel, nodeTone, nodeRank } from '../health.ts';
 // the way without being hidden.
 //
 
-// Each series is drawn against its own range, so shapes are comparable even though the
-// units are not. The legend carries the real value with its unit.
-const NoiseFloorDbm = -100;
-const NoiseCeilingDbm = -40;
-const ErrorCeiling = 0.2;
-const ResponseCeilingMs = 1000;
-
 // Z-Wave receivers work to roughly -95 dBm; -50 is about as good as it gets indoors
 const SignalFloorDbm = -95;
 const SignalCeilingDbm = -50;
@@ -83,15 +76,23 @@ export function HealthPanel({ health }: { health: INetworkHealth | null }) {
 //
 // Trends
 //
-// Three sparklines, one per series, rather than one plot carrying all three against two
-// different axes. Sharing a plot meant noise (dBm), errors (%) and response time (ms)
-// were drawn on scales that have nothing to do with each other, and they all bunched
-// along the bottom on top of one another — the old chart had a left axis, a right axis,
-// a units row and a colour legend and still could not be read at a glance.
+// One small chart per series rather than one plot carrying all three against two axes.
+// Series on unrelated scales bunch along the bottom on top of one another, which is why
+// the old chart needed a left axis, a right axis, a units row and a colour legend and
+// still could not be read.
 //
-// Split apart they need none of that machinery: each row is `label - instrument -
-// value`, the same grammar as the device meters below, so the whole view reads as one
-// instrument panel instead of a chart followed by some meters.
+// Each row is scaled to the thresholds that actually decide the verdict (see
+// `Thresholds` in services/networkHealth.ts) rather than to a round technical range, so
+// the height of a line means something: crossing the dashed line is the same event that
+// moves the score. All three are oriented so that UP IS WORSE — a card of low flat
+// lines is a healthy mesh, with no labels to read.
+//
+// The scales are deliberately FIXED, not fitted to what has been seen. An axis that
+// rescaled to the data would take a quiet mesh sitting at -95 dBm give or take a dB and
+// stretch that jitter to fill the row — inventing alarm out of nothing. Where a
+// baseline genuinely matters the service says so itself (it judges noise both
+// absolutely and against its own rolling average), so noise carries that average as a
+// marked reference line instead.
 //
 
 interface TrendSpec {
@@ -99,36 +100,61 @@ interface TrendSpec {
     label: string;
     // Value for a sample, or undefined where the series has no reading
     value: (sample: IHealthSample) => number | undefined;
-    // Map a value into 0 (bottom of the row) - 1 (top)
-    scale: (value: number) => number;
-    // The current value, written out with its unit
+    // Bottom and top of the row, in the series' own units. Where the verdict has a
+    // "poor" threshold, that IS the top of the scale — so a trace climbing towards the
+    // top of the row is climbing towards the reading the score calls bad, and the row
+    // spends its height on the range that matters instead of on headroom nothing
+    // reaches. Readings past it clamp to the top, where the red trace says the rest.
+    min: number;
+    max: number;
+    topIsPoor?: boolean;
+    // Where the verdict starts to care
+    fair: number;
     format: (value: number) => string;
+    // Short form for an axis tick
+    tick: (value: number) => string;
+    // Draw the window's own average as a reference line
+    baseline?: boolean;
 }
 
-// Ranges are fixed rather than fitted to what has been seen. A series that auto-scaled
-// would make a quiet mesh's noise wander dramatically across the row; against a fixed
-// range, a flat line low down means "almost nothing", which is the truth worth showing.
+// These mirror `Thresholds` in services/networkHealth.ts. If they drift, the chart will
+// call a reading fine while the score marks it down.
 const Trends: TrendSpec[] = [
     {
         key: 'noise',
         label: 'Noise',
         value: sample => sample.noise,
-        scale: value => (value - NoiseFloorDbm) / (NoiseCeilingDbm - NoiseFloorDbm),
-        format: value => `${Math.round(value)} dBm`
+        min: -100,
+        max: -60,
+        fair: -70,
+        format: value => `${Math.round(value)} dBm`,
+        tick: value => String(Math.round(value)),
+        baseline: true
     },
     {
         key: 'errors',
         label: 'Errors',
         value: sample => sample.errorRate,
-        scale: value => value / ErrorCeiling,
-        format: value => `${Math.round(value * 100)}%`
+        min: 0,
+        max: 0.08,
+        topIsPoor: true,
+        fair: 0.02,
+        format: value => `${(value * 100).toFixed(1)}%`,
+        tick: value => `${Math.round(value * 100)}%`
     },
     {
         key: 'response',
         label: 'Reply',
         value: sample => sample.responseMs,
-        scale: value => value / ResponseCeilingMs,
-        format: value => `${Math.round(value)} ms`
+        min: 0,
+        max: 1500,
+        topIsPoor: true,
+        fair: 700,
+        format: value => `${Math.round(value)} ms`,
+        tick: value => `${Math.round(value)}`,
+        // Reply time normally sits far below the threshold, so "is it above its usual?"
+        // is the reading that carries information — the same trick as noise.
+        baseline: true
     }
 ];
 
@@ -151,39 +177,72 @@ function Trend({ samples }: { samples: IHealthSample[] }) {
 
 function TrendRow({ trend, samples }: { trend: TrendSpec; samples: IHealthSample[] }) {
     const width = 100;
-    const height = 24;
+    const height = 40;
 
-    // Gaps matter: a series with no reading yet must not draw a line along zero
-    const points = samples
-        .map((sample, index) => {
-            const value = trend.value(sample);
-            if (value === undefined) {
-                return undefined;
-            }
+    // Every scale runs worse-upward, so a value's height is how bad it is
+    const unit = (value: number): number => clamp01((value - trend.min) / (trend.max - trend.min));
+    const y = (value: number): number => height - unit(value) * height;
 
-            const x = (index / (samples.length - 1)) * width;
-            const y = height - clamp01(trend.scale(value)) * height;
+    const readings = samples.map(trend.value);
+    const measured = readings.filter((value): value is number => value !== undefined);
 
-            return `${round2(x)},${round2(y)}`;
-        })
+    // Gaps matter: a series with no reading yet must not draw a line along the bottom
+    const points = readings
+        .map((value, index) => value === undefined
+            ? undefined
+            : `${round2((index / (samples.length - 1)) * width)},${round2(y(value))}`)
         .filter((point): point is string => point !== undefined);
 
-    const latest = [...samples].reverse().map(trend.value).find(value => value !== undefined);
+    const latest = [...readings].reverse().find(value => value !== undefined);
+    const tone = latest === undefined ? '' : bandTone(latest, trend);
+    const average = trend.baseline && measured.length > 0
+        ? measured.reduce((sum, value) => sum + value, 0) / measured.length
+        : undefined;
 
     return (
-        <div className="trend-row">
-            <span className="meter-label">{trend.label}</span>
-            <span className={`trend-spark ${trend.key}`}>
-                {points.length > 1 && (
-                    <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
-                        <polygon className="trend-area" points={`0,${height} ${points.join(' ')} ${width},${height}`} />
-                        <polyline className="trend-line" points={points.join(' ')} />
-                    </svg>
-                )}
-            </span>
-            <span className="meter-value">{latest === undefined ? '—' : trend.format(latest)}</span>
+        <div className="trend">
+            <div className="trend-head">
+                <span className="meter-label">{trend.label}</span>
+                <span className={`trend-value ${tone}`}>{latest === undefined ? '—' : trend.format(latest)}</span>
+            </div>
+
+            <div className="trend-body">
+                {/* Top, threshold and bottom of the scale. The threshold tick is the one
+                    worth reading: it names the line the verdict cares about. */}
+                <div className="trend-ticks" aria-hidden="true">
+                    <span className={trend.topIsPoor ? 'at-poor' : undefined} style={{ top: '0%' }}>{trend.tick(trend.max)}</span>
+                    <span className="at-threshold" style={{ top: `${round2((1 - unit(trend.fair)) * 100)}%` }}>{trend.tick(trend.fair)}</span>
+                    <span style={{ top: '100%' }}>{trend.tick(trend.min)}</span>
+                </div>
+
+                <span className={`trend-spark ${tone}`}>
+                    {points.length > 1 && (
+                        <svg viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden="true">
+                            <polygon className="trend-area" points={`0,${height} ${points.join(' ')} ${width},${height}`} />
+
+                            {average !== undefined && (
+                                <line className="trend-baseline" x1={0} x2={width} y1={round2(y(average))} y2={round2(y(average))} />
+                            )}
+
+                            <line className="trend-threshold fair" x1={0} x2={width} y1={round2(y(trend.fair))} y2={round2(y(trend.fair))} />
+
+                            <polyline className="trend-line" points={points.join(' ')} />
+                        </svg>
+                    )}
+                </span>
+            </div>
         </div>
     );
+}
+
+// A reading's colour is what the verdict would say about it, so the trace goes amber or
+// red exactly when the score does — and sits at the accent colour the rest of the time.
+function bandTone(value: number, trend: TrendSpec): string {
+    if (trend.topIsPoor && value >= trend.max) {
+        return 'bad';
+    }
+
+    return value >= trend.fair ? 'warn' : 'ok';
 }
 
 // How far back the retained samples reach

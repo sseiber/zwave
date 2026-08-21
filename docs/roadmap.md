@@ -29,6 +29,7 @@
 | 1.26.0 | Space and calm pass 1 — one spacing scale, one type scale, shared group labels |
 | 1.27.0 | Space and calm pass 2 — Dashboard: verdict hero + three cards, drawn device roll-up |
 | 1.28.0 | Space and calm pass 3 — Health: one chart split into three sparkline rows |
+| 1.29.0 | Health trends carry a scale — thresholds as the axis, worse-upward, status-coloured traces |
 
 Plus a tested live-backup script (`setup/deployment/zwave-backup.sh`) and its SIGPIPE
 fix. Build/deploy/git conventions are in [CLAUDE.md](../CLAUDE.md); the web UI lives in
