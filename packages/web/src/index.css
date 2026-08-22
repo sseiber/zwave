@@ -257,9 +257,48 @@ label.check input { width: auto; }
 
 /* Scene editor device groups (by room) */
 .device-group + .device-group { margin-top: var(--s-4); }
+/* A room group in the scene editor: a fixed row that opens and shuts. The rooms never
+   move — only the count beside one and whether it is open. */
 .device-group-head {
+    display: flex;
+    align-items: center;
+    gap: var(--s-2);
+    width: 100%;
+    min-height: 2.5rem;
+    border: none;
     border-bottom: 1px solid var(--border);
-    padding-bottom: var(--s-1);
+    border-radius: 0;
+    background: none;
+    padding: 0 0 var(--s-1);
+    text-align: left;
+}
+.device-group-head:hover { border-color: var(--border); }
+.device-group-head .chevron { flex: none; color: var(--muted); }
+.device-group-label { flex: 1; }
+.device-group-count {
+    flex: none;
+    font-size: var(--t-micro);
+    font-weight: 600;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    padding: 0 var(--s-1);
+    min-width: 1.2rem;
+    text-align: center;
+}
+
+/* Save and Cancel stay reachable however long the device list gets */
+.form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    display: flex;
+    gap: var(--s-2);
+    margin: var(--s-4) calc(-1 * var(--s-4)) calc(-1 * var(--s-3));
+    padding: var(--s-3) var(--s-4);
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 10px 10px;
 }
 
 /* Scene editor rows */

@@ -352,6 +352,18 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
     // Every device on the controller, grouped by room — a scene is not scoped to a room
     const groups = groupDevicesByRoom(devices, rooms);
 
+    // Rooms start collapsed unless the scene already sets something in them, so editing
+    // a two-device scene is a short form rather than a scroll past every device in the
+    // house. The groups themselves never move: same rooms, same order, open or shut —
+    // only the count beside a room and its own open state change.
+    const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+        const initial: Record<string, boolean> = {};
+        groups.forEach(group => {
+            initial[group.key] = group.devices.some(device => scene?.devices.some(d => d.deviceId === device.nodeId));
+        });
+        return initial;
+    });
+
     const toggle = (device: IDeviceInfo): void => {
         setSelected(current => {
             if (current[device.nodeId]) {
@@ -402,7 +414,7 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
             </label>
 
             <label>
-                <span>Room <span className="muted">(optional label)</span></span>
+                <span>Room <span className="muted">(label)</span></span>
                 <select value={roomId} onChange={e => setRoomId(e.target.value)}>
                     <option value="">No room</option>
                     {rooms.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -410,7 +422,7 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
             </label>
 
             <fieldset className="schedules">
-                <legend>Schedules <span className="muted">(optional — the scene is always activatable by hand)</span></legend>
+                <legend>Schedules</legend>
                 {schedules.length === 0
                     ? <p className="muted hint">No schedules — this scene runs only when you activate it.</p>
                     : schedules.map((s, index) => (
@@ -426,26 +438,42 @@ function SceneForm({ scene, rooms, devices, onCancel, onSave }: SceneFormProps) 
             </fieldset>
 
             <fieldset>
-                <legend>Devices and what they do</legend>
+                <legend>Devices</legend>
                 {devices.length === 0
                     ? <p className="muted">No devices available — include a device first.</p>
-                    : groups.map(group => (
-                        <div key={group.key} className="device-group">
-                            <h4 className="device-group-head">{group.label}</h4>
-                            {group.devices.map(device => (
-                                <DeviceRow
-                                    key={device.nodeId}
-                                    device={device}
-                                    state={selected[device.nodeId]}
-                                    onToggle={() => toggle(device)}
-                                    onUpdate={update}
-                                />
-                            ))}
-                        </div>
-                    ))}
+                    : groups.map(group => {
+                        const count = group.devices.filter(device => selected[device.nodeId]).length;
+                        const open = openGroups[group.key] ?? false;
+
+                        return (
+                            <div key={group.key} className="device-group">
+                                <button
+                                    type="button"
+                                    className="device-group-head"
+                                    aria-expanded={open}
+                                    onClick={() => setOpenGroups(current => ({ ...current, [group.key]: !open }))}
+                                >
+                                    <span className={`chevron${open ? ' open' : ''}`} aria-hidden="true" />
+                                    <span className="device-group-label">{group.label}</span>
+                                    {count > 0 && <span className="device-group-count">{count}</span>}
+                                </button>
+
+                                {open && group.devices.map(device => (
+                                    <DeviceRow
+                                        key={device.nodeId}
+                                        device={device}
+                                        state={selected[device.nodeId]}
+                                        onToggle={() => toggle(device)}
+                                        onUpdate={update}
+                                    />
+                                ))}
+                            </div>
+                        );
+                    })}
             </fieldset>
 
-            <div className="controls">
+            {/* Sticky, so committing never means scrolling back past the device list */}
+            <div className="form-actions">
                 <button type="submit" className="primary" disabled={!canSave}>Save</button>
                 <button type="button" onClick={onCancel}>Cancel</button>
             </div>
@@ -467,7 +495,7 @@ function DeviceRow({ device, state, onToggle, onUpdate }: DeviceRowProps) {
         <div className="scene-row">
             <label className="check">
                 <input type="checkbox" checked={Boolean(state)} onChange={onToggle} />
-                <span>{device.name || `Node ${device.nodeId}`} <span className="muted">{device.name ? `· node ${device.nodeId} ` : ''}· {device.type}</span></span>
+                <span>{device.name || `Node ${device.nodeId}`}</span>
             </label>
 
             {state && (

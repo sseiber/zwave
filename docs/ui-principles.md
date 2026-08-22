@@ -56,6 +56,9 @@ sheet held 25 spacing values and 24 font sizes, with almost all text between 0.6
   not. On/Off stays two fixed targets rather than one toggle: on a wall panel, "turn it
   off" should be one deterministic tap, not a tap whose result depends on a state you
   have to read first. Only the highlight moves.
+- **Progressive disclosure keeps the frame still.** The scene editor's room groups open
+  and shut, but the rooms themselves never move — same set, same order, with a count
+  beside one. Collapsing is allowed to hide rows; it is not allowed to rearrange them.
 - **One card per row** at every width (`.dash-grid`, `.scene-tiles`), matching the
   device list. No masonry that reflows as the window changes.
 - **One place per action.** The bottom nav reaches every view, so cards carry no
