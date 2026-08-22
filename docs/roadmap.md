@@ -31,6 +31,7 @@
 | 1.28.0 | Space and calm pass 3 — Health: one chart split into three sparkline rows |
 | 1.29.0 | Health trends carry a scale — thresholds as the axis, worse-upward, status-coloured traces |
 | 1.30.0 | Space and calm pass 4 — Devices: one line per device, status shown only when it differs |
+| 1.31.0 | Space and calm pass 5 — Scene editor: rooms collapse, sticky Save; **phase complete** |
 
 Plus a tested live-backup script (`setup/deployment/zwave-backup.sh`) and its SIGPIPE
 fix. Build/deploy/git conventions are in [CLAUDE.md](../CLAUDE.md); the web UI lives in
@@ -183,8 +184,8 @@ together.
 
 # Next phase — mobile space and calm
 
-**In progress (pass 1 shipped in 1.26.0: the spacing/type scales — see
-[One rhythm](ui-principles.md#one-rhythm)).** The views work, but a lot is packed into each one. The next pass is
+**Complete (1.26.0 - 1.31.0).** All four views below have had their pass; the
+decisions live in [ui-principles.md](ui-principles.md). The views worked, but a lot is packed into each one. The next pass is
 about *space*: making the mobile screen easier to read and use without losing any of the
 features, and without going back on
 [docs/ui-principles.md](ui-principles.md).
@@ -209,8 +210,12 @@ The problem, view by view (worth re-checking on the tablet before starting):
   height, so twelve fit on a phone instead of nine. The status pill and the power figure
   appear only when they say something. Details gained the node id and type, and lost two
   thirds of its help text.
-- **Scenes** — tiles plus per-tile detail disclosure; the editor is a long form
-  (name, room, schedules, triggers-era leftovers, per-device actions).
+- ~~**Scenes** — tiles plus per-tile detail disclosure; the editor is a long form
+  (name, room, schedules, triggers-era leftovers, per-device actions).~~ **Done in
+  1.31.0.** The list was already fine. In the editor the room groups now collapse
+  (open where the scene already sets something), the device rows dropped the repeated
+  `· node N · type`, and Save/Cancel stick to the bottom. The whole form fits one
+  screen. There were no triggers-era leftovers — that note was stale.
 
 Directions to consider (none decided):
 
