@@ -30,6 +30,7 @@
 | 1.27.0 | Space and calm pass 2 — Dashboard: verdict hero + three cards, drawn device roll-up |
 | 1.28.0 | Space and calm pass 3 — Health: one chart split into three sparkline rows |
 | 1.29.0 | Health trends carry a scale — thresholds as the axis, worse-upward, status-coloured traces |
+| 1.30.0 | Space and calm pass 4 — Devices: one line per device, status shown only when it differs |
 
 Plus a tested live-backup script (`setup/deployment/zwave-backup.sh`) and its SIGPIPE
 fix. Build/deploy/git conventions are in [CLAUDE.md](../CLAUDE.md); the web UI lives in
@@ -202,8 +203,12 @@ The problem, view by view (worth re-checking on the tablet before starting):
   sparkline rows sharing the device meters' `label · instrument · value` grammar, which
   removed the left axis, the right axis, the units row and the colour legend outright.
   Factors are separated by a rule, and a "Devices" label sits over the dot strip.
-- **Devices** — every device is a card with controls plus an expandable Details holding
-  rich state, configuration parameters and maintenance.
+- ~~**Devices** — every device is a card with controls plus an expandable Details holding
+  rich state, configuration parameters and maintenance.~~ **Done in 1.30.0:** one line
+  per device (name, power when drawing, a segmented On/Off, a chevron), roughly half the
+  height, so twelve fit on a phone instead of nine. The status pill and the power figure
+  appear only when they say something. Details gained the node id and type, and lost two
+  thirds of its help text.
 - **Scenes** — tiles plus per-tile detail disclosure; the editor is a long form
   (name, room, schedules, triggers-era leftovers, per-device actions).
 

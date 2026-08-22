@@ -53,12 +53,18 @@ sheet held 25 spacing values and 24 font sizes, with almost all text between 0.6
 
 - **Controls do not morph.** Filter options are a fixed checkbox set — only the counts
   beside them change. Result lists may change in real time; the controls above them may
-  not.
+  not. On/Off stays two fixed targets rather than one toggle: on a wall panel, "turn it
+  off" should be one deterministic tap, not a tap whose result depends on a state you
+  have to read first. Only the highlight moves.
 - **One card per row** at every width (`.dash-grid`, `.scene-tiles`), matching the
   device list. No masonry that reflows as the window changes.
 - **One place per action.** The bottom nav reaches every view, so cards carry no
   navigation links. Dashboard cards report; the section views act. The views name
   themselves, so there is no standing app title above them.
+- **A badge everything carries says nothing.** Every device row used to show an "alive"
+  pill and a power figure — 23 identical badges and a column of "0 W". Status and
+  readings appear only when they differ from the ordinary case, which is what makes a
+  red DEAD pill worth seeing.
 - **A fact appears once per screen.** The Dashboard used to carry "23/23 responding" and
   "Offline: 0" on two different cards. Same fact, twice the reading.
 - **The verdict is not a card.** "Is anything wrong?" is the page speaking, so it sits
