@@ -115,40 +115,68 @@ function DeviceCard({ device, onControl, run, refresh }: DeviceCardProps) {
 
     return (
         <li className={`card device ${device.on ? 'on' : 'off'}`}>
-            <div className="card-head">
-                <span className="name">{device.name || `Node ${device.nodeId}`}</span>
-                <span className={`pill ${device.status}`}>{device.status}</span>
-            </div>
-            <div className="meta">
-                <span>node {device.nodeId}</span>
-                <span>{device.type}</span>
-                {device.on !== undefined && (
-                    <span>{device.on ? 'on' : 'off'}{isDimmer && device.level !== undefined ? ` · ${device.level}%` : ''}</span>
+            <div className="device-row">
+                <span className="device-name">
+                    {device.name || `Node ${device.nodeId}`}
+                    {isDimmer && device.on && device.level !== undefined && <span className="device-level"> {device.level}%</span>}
+                    {ramping && <span className="muted device-level"> → {device.targetLevel}%</span>}
+                </span>
+
+                {/* Only what is actually true of this device right now. A badge every
+                    device carries ("alive") and a figure every off device reports
+                    ("0 W") are 23 repetitions of nothing; the status pill earns its
+                    place only when the status is not the ordinary one. */}
+                {device.power?.watts !== undefined && device.power.watts > 0 && (
+                    <span className="power-badge">{round(device.power.watts)} W</span>
                 )}
-                {ramping && <span className="muted">→ {device.targetLevel}%</span>}
-                {device.power?.watts !== undefined && <span className="power-badge">{round(device.power.watts)} W</span>}
-                {device.link?.rssi !== undefined && <span className={`signal s${signal(device.link.rssi).level}`}>{signal(device.link.rssi).label}</span>}
-            </div>
-            <div className="controls">
-                <button onClick={() => void onControl(device.nodeId, DeviceAction.On)}>On</button>
-                <button onClick={() => void onControl(device.nodeId, DeviceAction.Off)}>Off</button>
-                {isDimmer && (
-                    <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={level}
-                        onChange={e => setLevel(Number(e.target.value))}
-                        onPointerUp={() => void onControl(device.nodeId, DeviceAction.Dim, level)}
-                        onKeyUp={() => void onControl(device.nodeId, DeviceAction.Dim, level)}
-                        aria-label={`Dim ${device.name || device.nodeId}`}
-                    />
+                {device.status !== DeviceStatus.Alive && (
+                    <span className={`pill ${device.status}`}>{device.status}</span>
                 )}
-                <span className="spacer" />
-                <button className="link-btn" onClick={() => setOpen(v => !v)} aria-expanded={open}>
-                    {open ? 'Hide' : 'Details'}
+
+                {/* Two fixed targets rather than one toggle: on a wall panel "turn it
+                    off" should be one deterministic tap, not a tap whose result depends
+                    on a state you have to read first. Which one is current is shown,
+                    but neither ever moves. */}
+                <span className="seg">
+                    <button
+                        className={device.on === true ? 'active' : undefined}
+                        aria-pressed={device.on === true}
+                        onClick={() => void onControl(device.nodeId, DeviceAction.On)}
+                    >
+                        On
+                    </button>
+                    <button
+                        className={device.on === false ? 'active off' : undefined}
+                        aria-pressed={device.on === false}
+                        onClick={() => void onControl(device.nodeId, DeviceAction.Off)}
+                    >
+                        Off
+                    </button>
+                </span>
+
+                <button
+                    className="device-details-toggle"
+                    onClick={() => setOpen(v => !v)}
+                    aria-expanded={open}
+                    aria-label={`Details for ${device.name || `Node ${device.nodeId}`}`}
+                >
+                    <span className={`chevron${open ? ' open' : ''}`} aria-hidden="true" />
                 </button>
             </div>
+
+            {isDimmer && (
+                <input
+                    className="device-dim"
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={level}
+                    onChange={e => setLevel(Number(e.target.value))}
+                    onPointerUp={() => void onControl(device.nodeId, DeviceAction.Dim, level)}
+                    onKeyUp={() => void onControl(device.nodeId, DeviceAction.Dim, level)}
+                    aria-label={`Dim ${device.name || device.nodeId}`}
+                />
+            )}
 
             {open && <DeviceDetail device={device} run={run} refresh={refresh} />}
         </li>
@@ -239,6 +267,7 @@ function DeviceDetail({ device, run, refresh }: DeviceDetailProps) {
             <RenameRow device={device} run={run} refresh={refresh} />
 
             <dl>
+                <Row label="Node" value={`${device.nodeId} · ${device.type}`} />
                 {device.manufacturer
                     ? <Row label="Manufacturer" value={device.manufacturer} />
                     : device.manufacturerId && <Row label="Manufacturer" value="Unknown (not in device database)" />}
@@ -286,7 +315,7 @@ function DeviceDetail({ device, run, refresh }: DeviceDetailProps) {
                         </span>
                     )}
                 </div>
-                <p className="muted hint">Signal updates passively as the device is used. “Test link” actively pings it for a fresh reading.</p>
+                <p className="muted hint">Signal accrues as the device is used; a test pings it now.</p>
             </div>
 
             <MaintenanceRow nodeId={device.nodeId} run={run} refresh={refresh} />
@@ -333,7 +362,7 @@ export function MaintenanceRow({ nodeId, run, refresh }: { nodeId: number; run: 
                     {busy === 'routes' ? 'Rebuilding…' : 'Rebuild routes'}
                 </button>
             </div>
-            <p className="muted hint">Re-interview re-reads the device (fixes an “unknown” device and its configuration). Rebuild routes recomputes how the controller reaches it — useful after moving the controller.</p>
+            <p className="muted hint">Re-interview re-reads an unidentified device. Rebuild routes after moving the controller.</p>
         </div>
     );
 }
@@ -373,7 +402,7 @@ function ConfigSection({ nodeId, run }: { nodeId: number; run: RunFn }) {
                         <button onClick={() => void load()} disabled={loading}>
                             {loading ? 'Loading…' : 'Load configuration'}
                         </button>
-                        <span className="muted hint">Device-specific settings (e.g. dimmer ramp rate) stored on the device.</span>
+                        <span className="muted hint">Settings stored on the device itself.</span>
                     </div>
                 )
                 : params.length === 0

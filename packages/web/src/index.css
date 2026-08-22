@@ -479,6 +479,63 @@ button:disabled:hover { border-color: var(--border); }
 .maint-line button { padding: var(--s-1) var(--s-2); font-size: var(--t-label); }
 .maint-line .muted { font-size: var(--t-label); }
 
+/*
+ * Device row — one line per device.
+ *
+ * Each device used to be a card carrying a name, a status pill, "node N", its type, its
+ * on/off state, its power and its signal, over a row of buttons: about 110px of height
+ * for a line's worth of information, and 23 of them to scroll. The pill said "alive" on
+ * every device and the power said "0 W" on every device that was off — 23 repetitions
+ * of nothing. What is left is what differs between one device and the next.
+ */
+.device-row { display: flex; align-items: center; gap: var(--s-2); }
+.device-name {
+    flex: 1;
+    min-width: 0;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.device-level { font-weight: 400; font-size: var(--t-label); color: var(--muted); }
+.device-row .power-badge { flex: none; font-size: var(--t-label); }
+.device-row .pill { flex: none; }
+
+/* Two fixed targets in fixed places; only the highlight moves */
+.seg { display: flex; flex: none; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.seg button {
+    border: none;
+    border-radius: 0;
+    background: var(--card);
+    min-height: 2.25rem;
+    padding: 0 var(--s-3);
+    font-size: var(--t-label);
+    color: var(--muted);
+}
+.seg button:hover { border-color: transparent; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.active { background: var(--on); border-color: var(--on); color: #fff; font-weight: 600; }
+.seg button.active.off { background: var(--muted); }
+
+.device-details-toggle {
+    flex: none;
+    width: 2.2rem;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.device-details-toggle:hover { border-color: transparent; }
+
+/* A dimmer does more, so it gets one more line — and only a dimmer does */
+.device-dim { width: 100%; margin: var(--s-3) 0 0; }
+/* A device that is off still remembers its level. Left at full strength the filled
+   track reads as "this light is on"; dimmed, it reads as where it will come back to. */
+.device.off .device-dim { opacity: 0.45; }
+
 /* Rich device state */
 .power-badge {
     color: var(--accent);
