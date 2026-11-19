@@ -99,6 +99,13 @@ export interface IDeviceParams {
     nodeId: number;
 }
 
+// GET /devices/:nodeId?refresh=true asks the device for its switch state before
+// answering, instead of answering from the driver's cache. For a caller that needs
+// the state as it is now (a device switched at the wall that never reported it).
+export interface IDeviceQuery {
+    refresh?: boolean;
+}
+
 // Progress of a network-wide route rebuild (GET /rebuild-routes). `active` is true
 // while the controller is rebuilding; the counts summarize per-node status.
 export interface IRebuildRoutesStatus {

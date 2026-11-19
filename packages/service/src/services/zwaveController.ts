@@ -399,6 +399,30 @@ export class ZWaveController {
         return this.describeNode(this.getNode(nodeId));
     }
 
+    // The device as it is now: asks it for its switch state first, then describes it.
+    // `getDevice` answers from the driver's cache, which is right after a command sent
+    // through this service and after a wall press on a device that reports by itself;
+    // a device that never volunteers a report (older non-Plus switches) is stale there
+    // until something asks it. This costs one radio exchange, and throws when the
+    // device does not answer, so the caller never mistakes a cached value for a fresh one.
+    public async readDevice(nodeId: number): Promise<IDeviceInfo> {
+        this.assertReady();
+
+        const node = this.getNode(nodeId);
+        const commandClass = this.deviceType(node) === DeviceType.Dimmer
+            ? CommandClasses['Multilevel Switch']
+            : CommandClasses['Binary Switch'];
+
+        if (node.supportsCC(commandClass)) {
+            const value = await node.pollValue({ commandClass, property: 'currentValue' });
+            if (value === undefined) {
+                throw new Error(`Device ${nodeId} did not report its state`);
+            }
+        }
+
+        return this.describeNode(node);
+    }
+
     public async setDevicePower(nodeId: number, on: boolean): Promise<void> {
         this.assertReady();
 

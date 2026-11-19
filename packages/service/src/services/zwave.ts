@@ -125,14 +125,16 @@ class ZWaveService {
         }
     }
 
-    public getDevice(nodeId: number): IServiceResponse {
+    public async getDevice(nodeId: number, refresh = false): Promise<IServiceResponse> {
         try {
-            const device = this.controller.getDevice(nodeId);
+            const device = refresh
+                ? await this.controller.readDevice(nodeId)
+                : this.controller.getDevice(nodeId);
 
             return {
                 succeeded: true,
                 statusCode: 200,
-                message: `Device ${nodeId} found`,
+                message: refresh ? `Device ${nodeId} read` : `Device ${nodeId} found`,
                 data: device
             };
         }

@@ -220,7 +220,11 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - `GET /health`
 - `POST /inclusion/start` `{ strategy?, secure?, pin? }` (`secure: false` forces insecure/no-S2 inclusion, overriding `strategy`), `POST /inclusion/stop`
 - `POST /exclusion/start`, `POST /exclusion/stop`
-- `GET /devices`, `GET /devices/:nodeId`
+- `GET /devices`, `GET /devices/:nodeId`. Both answer from the zwave-js cache;
+  `GET /devices/:nodeId?refresh=true` asks the device for its switch state first
+  (`readDevice` → `node.pollValue` on `currentValue`), for a caller that needs the
+  state as it is now (a wall press on a device that never reports). It costs a radio
+  exchange and fails (500) when the device does not answer, so keep it out of polling.
 - `PUT /devices/:nodeId` `{ name }` — rename a device; the name is stored in the
   zwave-js network cache (not on the device), so it survives restarts with the storage
   volume. Empty string clears it (UI falls back to `Node <id>`).
