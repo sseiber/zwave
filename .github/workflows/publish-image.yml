@@ -1,0 +1,182 @@
+# Publishes the multi-arch image to GHCR.
+#
+# This replaces running `npm run dockerbuild` from a laptop. That needed a personal
+# access token with write:packages stored in the local Docker keychain, which expires
+# every 90 days and carries far more account access than a push requires. A workflow
+# run gets a GITHUB_TOKEN instead: scoped to this repository, valid only for the run,
+# and nothing to rotate.
+#
+# Two ways in, because the version bump is the release signal in this repo:
+#
+#   workflow_dispatch  Publishes whatever branch you pick. This is the one for the
+#                      build/push/pull-on-the-tablet loop — it does not need the work
+#                      merged first:  gh workflow run publish-image.yml --ref <branch>
+#   push to main       Publishes only if package.json's version has no image yet, so
+#                      merging a PR that did not bump the version republishes nothing.
+#
+# Both architectures build on native runners in parallel rather than one of them under
+# QEMU, which this repo gets free because it is public. Each pushes an untagged image
+# by digest; the merge job then binds the two digests under the version tag.
+
+name: Publish image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# The whole reason this workflow exists: the only credential it needs is handed to it.
+permissions:
+  contents: read
+  packages: write
+
+# Never let two publishes of the same ref race to write the same tag
+concurrency:
+  group: publish-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Decide what to publish
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.plan.outputs.image }}
+      version: ${{ steps.plan.outputs.version }}
+      publish: ${{ steps.plan.outputs.publish }}
+      latest: ${{ steps.plan.outputs.latest }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: plan
+        name: Read the version and check whether it is already published
+        run: |
+          set -euo pipefail
+
+          # One source of truth for both, the same two the local script reads
+          image=$(node -p "require('./configs/imageConfig.json').imageName")
+          version=$(node -p "require('./package.json').version")
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          # :latest follows main only, so a branch build can never move it
+          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # A hand-triggered run always publishes: that is the iteration loop, and it
+          # is expected to overwrite the tag it just pushed.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Publishing $image:$version (manual run from $GITHUB_REF_NAME)"
+            exit 0
+          fi
+
+          if docker manifest inspect "$image:$version" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::$image:$version is already published — nothing to do. Bump the version to publish."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Publishing $image:$version"
+          fi
+
+  build:
+    name: Build ${{ matrix.arch }}
+    needs: prepare
+    if: needs.prepare.outputs.publish == 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # The image build is the verification: its build stage runs `npm run build` and
+      # `npm run lint`, so a failure here is a failed build or a lint error.
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: ${{ matrix.platform }}
+          provenance: false
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
+          outputs: type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+
+      # Each arch is pushed untagged; hand its digest to the merge job to bind together
+      - name: Export digest
+        run: |
+          set -euo pipefail
+          digest="${{ steps.build.outputs.digest }}"
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+          if-no-files-found: error
+
+  merge:
+    name: Publish manifest
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create the multi-arch tag
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          LATEST: ${{ needs.prepare.outputs.latest }}
+        run: |
+          set -euo pipefail
+
+          tags=(-t "$IMAGE:$VERSION")
+          if [ "$LATEST" = "true" ]; then
+            tags+=(-t "$IMAGE:latest")
+          fi
+
+          # Each file is named for the digest its arch was pushed under
+          docker buildx imagetools create "${tags[@]}" \
+            $(printf "$IMAGE@sha256:%s " *)
+
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+          echo "::notice::Published $IMAGE:$VERSION"

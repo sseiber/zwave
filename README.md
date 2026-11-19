@@ -228,6 +228,21 @@ The distributable is a multi-stage, **multi-arch** image (`linux/amd64` +
 `ghcr.io/sseiber/zwave-service` (see `configs/imageConfig.json`). The Raspberry Pi 4
 pulls the arm64 variant automatically.
 
+Publishing runs in GitHub Actions (`.github/workflows/publish-image.yml`), which
+authenticates with the run's `GITHUB_TOKEN` — there is no access token to create,
+store or rotate:
+
+```bash
+gh workflow run publish-image.yml --ref my-branch   # publish any branch
+gh run watch                                        # follow it
+```
+
+A push to `main` publishes too, but only when the root `package.json` version has no
+image yet, so merging without a version bump republishes nothing. `:latest` follows
+`main` only.
+
+To build locally instead (needs `docker login ghcr.io` with a `write:packages` token):
+
 ```bash
 npm run dockerbuild     # build and push the multi-arch image
 ```
