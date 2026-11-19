@@ -23,7 +23,10 @@ name: Publish image
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    # TEMPORARY: chore/v1.32.0 is here only to exercise this workflow before it is
+    # merged (workflow_dispatch cannot run until the file is on the default branch).
+    # Removed in the next commit.
+    branches: [main, chore/v1.32.0]
 
 # The whole reason this workflow exists: the only credential it needs is handed to it.
 permissions:
