@@ -32,6 +32,14 @@ RUN npm prune --production
 # Stage 2: Runtime stage - minimal image
 FROM node:22-bookworm-slim AS runtime
 
+# Links the published package to this repository on GHCR. Without it the package is
+# orphaned: it shows no source, and a workflow's GITHUB_TOKEN is not granted access to
+# it by virtue of the repo. (An already-orphaned package still has to be granted once
+# by hand under Package settings -> Manage Actions access.)
+LABEL org.opencontainers.image.source="https://github.com/sseiber/zwave"
+LABEL org.opencontainers.image.description="Fastify Z-Wave controller service and web UI for a Raspberry Pi"
+LABEL org.opencontainers.image.licenses="MIT"
+
 # Non-root user, in dialout for serial access
 RUN useradd -m -s /bin/bash zwaveuser && \
     usermod -aG dialout zwaveuser

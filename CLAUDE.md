@@ -294,10 +294,27 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - No compiler/python toolchain needed: the only native dep
   (`@serialport/bindings-cpp`, via zwave-js) installs a prebuilt N-API binary
   (`linux-x64` / `linux-arm64`) through `node-gyp-build`.
-- Built/pushed via `.scripts/dockerBuild.cjs`, driven by `configs/imageConfig.json`.
-  A multi-platform `arch` (comma-separated) triggers `--push` (no local `--load`)
-  and requires a `docker-container` buildx builder.
-- Image: `ghcr.io/sseiber/zwave-service`
+- **Publishing is a GitHub Actions job**, `.github/workflows/publish-image.yml`, not a
+  laptop task. It authenticates with the run's `GITHUB_TOKEN` (`permissions: packages:
+  write`), so there is no personal access token to store or rotate. Two ways in:
+  - `gh workflow run publish-image.yml --ref <branch>` — publishes **that branch**, so
+    the build/push/pull-on-the-tablet loop does not need the work merged first.
+  - a push to `main` — publishes only when the root `package.json` version has no image
+    yet, so merging a PR that didn't bump the version republishes nothing. `:latest`
+    moves only on `main`.
+  Each arch builds on a **native runner** (`ubuntu-latest` / `ubuntu-24.04-arm`, free
+  because the repo is public) and pushes untagged by digest; a merge job binds the two
+  digests under the version tag. The image build *is* the verification — its build
+  stage runs `npm run build` and `npm run lint`.
+- `.scripts/dockerBuild.cjs` (`npm run dockerbuild`) still works for a local build,
+  driven by `configs/imageConfig.json` — the workflow reads the same two files for the
+  image name and version. A multi-platform `arch` (comma-separated) triggers `--push`
+  (no local `--load`) and requires a `docker-container` buildx builder **and** a
+  `docker login ghcr.io` with a `write:packages` token. Prefer the workflow.
+- Image: `ghcr.io/sseiber/zwave-service`. The runtime stage carries
+  `org.opencontainers.image.source`, which is what links the package to this repo on
+  GHCR; an orphaned package must also be granted to the repo once by hand under
+  Package settings → Manage Actions access.
 - Runtime user `zwaveuser` is in the `dialout` group for serial access
 
 ## Important Implementation Details
