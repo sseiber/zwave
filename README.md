@@ -116,7 +116,7 @@ After calling `start`, activate inclusion/exclusion on the physical device.
 | Method | Route                             | Body                              |
 | ------ | --------------------------------- | --------------------------------- |
 | GET    | `/devices`                        | list all included devices + state |
-| GET    | `/devices/:nodeId`                | one device                        |
+| GET    | `/devices/:nodeId`                | one device; `?refresh=true` asks the device for its on/level first (slower, fails if it does not answer) |
 | PUT    | `/devices/:nodeId`                | `{ "name" }` — rename (stored in the network cache; empty clears it) |
 | POST   | `/devices/:nodeId/control`        | `{ "action": "on"\|"off"\|"dim", "level"? }` |
 | GET    | `/devices/:nodeId/config`         | Configuration CC parameters (named per device); `[]` if unsupported |

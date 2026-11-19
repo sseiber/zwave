@@ -11,6 +11,8 @@ import {
     IInclusionRequestSchema,
     IDeviceParams,
     IDeviceParamsSchema,
+    IDeviceQuery,
+    IDeviceQuerySchema,
     IDeviceControlRequest,
     IDeviceControlRequestSchema,
     IUpdateDeviceRequest,
@@ -122,17 +124,18 @@ const devicesRouterPlugin: FastifyPluginAsync<IDevicesRouterOptions> = async (se
                 }
             });
 
-            serverRoute.route<{ Params: IDeviceParams; Reply: IServiceReply }>({
+            serverRoute.route<{ Params: IDeviceParams; Querystring: IDeviceQuery; Reply: IServiceReply }>({
                 method: 'GET',
                 url: '/devices/:nodeId',
                 schema: {
                     params: IDeviceParamsSchema,
+                    querystring: IDeviceQuerySchema,
                     response: responseSchema
                 },
                 handler: async (request, response) => {
                     serverRoute.log.info({ tags: [RouteName] }, `${request.method} ${request.url}`);
 
-                    const result = serverRoute.zwaveService.getDevice(request.params.nodeId);
+                    const result = await serverRoute.zwaveService.getDevice(request.params.nodeId, request.query.refresh === true);
 
                     return response.status(result.statusCode as 200).send(result);
                 }
