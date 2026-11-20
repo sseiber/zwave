@@ -297,18 +297,29 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 - **Publishing is a GitHub Actions job**, `.github/workflows/publish-image.yml`, not a
   laptop task. It authenticates with the run's `GITHUB_TOKEN` (`permissions: packages:
   write`), so there is no personal access token to store or rotate. Two ways in:
-  - `gh workflow run publish-image.yml --ref <branch>` — publishes **that branch**, so
-    the build/push/pull-on-the-tablet loop does not need the work merged first.
-  - a push to `main` — publishes only when the root `package.json` version has no image
-    yet, so merging a PR that didn't bump the version republishes nothing. `:latest`
-    moves only on `main`.
+  - **pushing a `v*` tag is the release** — publishes `:<version>` and moves `:latest`.
+    The workflow fails before building if the tag disagrees with any `package.json`, so
+    a tag can't name a version the image doesn't contain. Tag with
+    **`.scripts/incVersion.sh`** (`patch|minor|major` or `--version x.y.z`, plus
+    `--commit`/`--tag`/`--push`), which bumps all four manifests, refreshes
+    `package-lock.json` (`npm ci` rejects a lockfile that disagrees with them, so
+    skipping it would break the Docker build rather than the script), commits, tags and
+    pushes as one step. It refuses to tag off `main`, to reuse an existing tag, or to
+    start from manifests already out of step.
+  - `gh workflow run publish-image.yml --ref <branch>` — rebuilds **that branch** at its
+    `package.json` version and **does not** move `:latest`; the build/push/pull-on-the-
+    tablet loop needs the work neither merged nor tagged.
+  Releases used to be inferred from a push to `main` whose version had no image yet.
+  That read intent out of the registry instead of from the author, and it cost two bugs:
+  a merge that skipped every job while reporting success, and `:latest` stranded on
+  1.4.0 for six releases. A tag states the intent, so nothing is inferred.
   Each arch builds on a **native runner** (`ubuntu-latest` / `ubuntu-24.04-arm`, free
   because the repo is public) and pushes untagged by digest; a merge job binds the two
   digests under the version tag. The image build *is* the verification — its build
   stage runs `npm run build` and `npm run lint`.
 - `.scripts/dockerBuild.cjs` (`npm run dockerbuild`) still works for a local build,
-  driven by `configs/imageConfig.json` — the workflow reads the same two files for the
-  image name and version. A multi-platform `arch` (comma-separated) triggers `--push`
+  driven by `configs/imageConfig.json` — the workflow reads that file for the image name
+  and takes the version from the tag. A multi-platform `arch` (comma-separated) triggers `--push`
   (no local `--load`) and requires a `docker-container` buildx builder **and** a
   `docker login ghcr.io` with a `write:packages` token. Prefer the workflow.
 - Image: `ghcr.io/sseiber/zwave-service`, **public**, so every pull (the Pi included) is

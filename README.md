@@ -230,16 +230,30 @@ pulls the arm64 variant automatically.
 
 Publishing runs in GitHub Actions (`.github/workflows/publish-image.yml`), which
 authenticates with the run's `GITHUB_TOKEN` — there is no access token to create,
-store or rotate:
+store or rotate.
+
+**A release is a git tag.** `.scripts/incVersion.sh` bumps every workspace, refreshes
+the lockfile, commits, tags and pushes, and the `v*` tag is what starts the publish:
 
 ```bash
-gh workflow run publish-image.yml --ref my-branch   # publish any branch
-gh run watch                                        # follow it
+.scripts/incVersion.sh patch --push    # 1.32.0 -> 1.32.1, tagged v1.32.1, released
+.scripts/incVersion.sh minor           # bump the files only; inspect, decide later
+.scripts/incVersion.sh --version 2.0.0 --push
 ```
 
-A push to `main` publishes too, but only when the root `package.json` version has no
-image yet, so merging without a version bump republishes nothing. `:latest` follows
-`main` only.
+Run it on `main`, with the work already merged. The script refuses to tag a branch, to
+reuse a version, or to start from manifests that disagree; the workflow independently
+refuses a tag whose version doesn't match every `package.json`, so a tag can never name
+something other than what the image contains.
+
+To rebuild an untagged branch — the build/push/pull-on-the-tablet loop — dispatch it by
+hand. That publishes the branch's `package.json` version and deliberately leaves
+`:latest` alone, so an in-progress branch never becomes what a fresh deployment pulls:
+
+```bash
+gh workflow run publish-image.yml --ref my-branch
+gh run watch
+```
 
 The package is public, so pulling it needs no credentials anywhere.
 
