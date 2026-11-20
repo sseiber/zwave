@@ -51,7 +51,8 @@ provided.
 
 | Variable          | Default             | Description                                            |
 | ----------------- | ------------------- | ------------------------------------------------------ |
-| `LOG_LEVEL`       | `debug`             | Pino log level                                         |
+| `LOG_LEVEL`       | `info`              | Pino log level. Read from the environment, not from `configs/*.env` -- the logger exists before the config plugin does |
+| `LOG_FORMAT`      | *(unset)*           | `json` for one JSON object per line. Unset means one readable coloured line per entry |
 | `PORT`            | `9094`              | HTTP listen port                                       |
 | `zwaveStorage`    | `/rpi-zwave/data`   | Directory for the network cache, security keys, and rooms/scenes JSON |
 | `zwaveSerialPort` | `/dev/ttyACM0`      | Serial device path for the Z-Stick                     |
