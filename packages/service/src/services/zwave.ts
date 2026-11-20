@@ -386,24 +386,28 @@ class ZWaveService {
     //
     private async applyAction(nodeId: number, action: DeviceAction, level?: number): Promise<void> {
         switch (action) {
-            case DeviceAction.On:
+            case DeviceAction.On: {
                 await this.controller.setDevicePower(nodeId, true);
                 break;
+            }
 
-            case DeviceAction.Off:
+            case DeviceAction.Off: {
                 await this.controller.setDevicePower(nodeId, false);
                 break;
+            }
 
-            case DeviceAction.Dim:
+            case DeviceAction.Dim: {
                 if (level === undefined) {
                     throw new Error(`A 'level' (0-100) is required for the 'dim' action`);
                 }
 
                 await this.controller.setDeviceLevel(nodeId, level);
                 break;
+            }
 
-            default:
+            default: {
                 throw new Error(`Unrecognized action '${String(action)}'`);
+            }
         }
     }
 

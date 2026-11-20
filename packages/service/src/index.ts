@@ -1,9 +1,9 @@
 /* eslint-disable no-console */
 import { FastifyInstance } from 'fastify';
-import { Server, IncomingMessage, ServerResponse } from 'http';
+import { Server, IncomingMessage, ServerResponse } from 'node:http';
 import composeServer from './composeServer.js';
 import { loggerOptions } from './logging.js';
-import { exMessage } from './utils/index.js';
+import { exMessage, forget } from './utils/index.js';
 
 const ModuleName = 'Main';
 
@@ -16,7 +16,7 @@ async function start() {
     try {
         const server: FastifyInstance<Server, IncomingMessage, ServerResponse> = await composeServer({
             logger: loggerOptions(),
-            pluginTimeout: 60000
+            pluginTimeout: 60_000
         });
 
         server.log.info({ tags: [ModuleName] }, `🚀 Server instance started`);
@@ -28,17 +28,22 @@ async function start() {
 
         await server.listen({
             host: '0.0.0.0',
-            port: parseInt(PORT, 10)
+            port: Number(PORT)
         });
 
         for (const signal of ['SIGINT', 'SIGTERM']) {
             process.on(signal, () => {
                 console.log(`Closing server instance with ${signal}`);
-                server.close().then((error) => {
-                    process.exit(error ? 1 : 0);
-                }).catch((ex) => {
-                    console.error(`Error closing server instance: ${exMessage(ex)}`);
-                    process.exit(1);
+
+                forget(async () => {
+                    try {
+                        await server.close();
+                        process.exit(0);
+                    }
+                    catch (ex) {
+                        console.error(`Error closing server instance: ${exMessage(ex)}`);
+                        process.exit(1);
+                    }
                 });
             });
         }

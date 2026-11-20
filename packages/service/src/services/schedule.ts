@@ -49,38 +49,42 @@ export function validateSchedule(schedule: ISchedule | undefined, geo: IGeoLocat
     }
 
     switch (schedule.kind) {
-        case ScheduleKind.Interval:
+        case ScheduleKind.Interval: {
             if (!schedule.every || schedule.every <= 0) {
                 return `An interval schedule requires 'every' to be greater than 0`;
             }
-            if (!schedule.unit || !(schedule.unit in UNIT_MS)) {
+            if (!schedule.unit || !Object.hasOwn(UNIT_MS, schedule.unit)) {
                 return `An interval schedule requires a valid 'unit'`;
             }
 
             return undefined;
+        }
 
-        case ScheduleKind.Daily:
+        case ScheduleKind.Daily: {
             return validateTimeOfDay(schedule.timeOfDay, geo);
+        }
 
-        case ScheduleKind.Weekly:
+        case ScheduleKind.Weekly: {
             if (!schedule.daysOfWeek?.length) {
                 return `A weekly schedule requires at least one day in 'daysOfWeek'`;
             }
-            if (schedule.daysOfWeek.some(day => !Number.isInteger(day) || day < 0 || day > 6)) {
+            if (schedule.daysOfWeek.some(day => !Number.isSafeInteger(day) || day < 0 || day > 6)) {
                 return `'daysOfWeek' entries must be integers 0 (Sunday) - 6 (Saturday)`;
             }
 
             return validateTimeOfDay(schedule.timeOfDay, geo);
+        }
 
-        case ScheduleKind.Monthly:
+        case ScheduleKind.Monthly: {
             if (!schedule.daysOfMonth?.length) {
                 return `A monthly schedule requires at least one day in 'daysOfMonth'`;
             }
-            if (schedule.daysOfMonth.some(day => !Number.isInteger(day) || day < 1 || day > 31)) {
+            if (schedule.daysOfMonth.some(day => !Number.isSafeInteger(day) || day < 1 || day > 31)) {
                 return `'daysOfMonth' entries must be integers 1 - 31`;
             }
 
             return validateTimeOfDay(schedule.timeOfDay, geo);
+        }
 
         case ScheduleKind.Once: {
             if (!schedule.at) {
@@ -98,8 +102,9 @@ export function validateSchedule(schedule: ISchedule | undefined, geo: IGeoLocat
             return undefined;
         }
 
-        default:
+        default: {
             return `Unrecognized schedule kind '${String(schedule.kind)}'`;
+        }
     }
 }
 
@@ -132,7 +137,7 @@ function validateTimeOfDay(timeOfDay: ITimeOfDay | undefined, geo: IGeoLocation 
 export function computeNextRun(schedule: ISchedule, from: Date, geo: IGeoLocation | undefined): Date | undefined {
     switch (schedule.kind) {
         case ScheduleKind.Interval: {
-            if (!schedule.every || schedule.every <= 0 || !schedule.unit || !(schedule.unit in UNIT_MS)) {
+            if (!schedule.every || schedule.every <= 0 || !schedule.unit || !Object.hasOwn(UNIT_MS, schedule.unit)) {
                 return undefined;
             }
 
@@ -149,13 +154,14 @@ export function computeNextRun(schedule: ISchedule, from: Date, geo: IGeoLocatio
             return (Number.isNaN(at.getTime()) || at.getTime() <= from.getTime()) ? undefined : at;
         }
 
-        case ScheduleKind.Daily:
+        case ScheduleKind.Daily: {
             // Today or tomorrow
             return findNextMatchingDay(from, 2, () => true, schedule.timeOfDay, geo);
+        }
 
         case ScheduleKind.Weekly: {
             const daysOfWeek = schedule.daysOfWeek ?? [];
-            if (!daysOfWeek.length) {
+            if (daysOfWeek.length === 0) {
                 return undefined;
             }
 
@@ -164,7 +170,7 @@ export function computeNextRun(schedule: ISchedule, from: Date, geo: IGeoLocatio
 
         case ScheduleKind.Monthly: {
             const daysOfMonth = schedule.daysOfMonth ?? [];
-            if (!daysOfMonth.length) {
+            if (daysOfMonth.length === 0) {
                 return undefined;
             }
 
@@ -172,8 +178,9 @@ export function computeNextRun(schedule: ISchedule, from: Date, geo: IGeoLocatio
             return findNextMatchingDay(from, 70, day => daysOfMonth.includes(day.getDate()), schedule.timeOfDay, geo);
         }
 
-        default:
+        default: {
             return undefined;
+        }
     }
 }
 

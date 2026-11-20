@@ -7,9 +7,7 @@ import {
     FastifyPluginAsync
 } from 'fastify';
 import fp from 'fastify-plugin';
-import {
-    resolve as pathResolve
-} from 'node:path';
+import nodePath from 'node:path';
 import fse from 'fs-extra';
 import { getDirname, exMessage } from '../utils/index.js';
 
@@ -71,13 +69,13 @@ const configPlugin: FastifyPluginAsync<IConfigPluginOptions> = async (server: Fa
             schema: configSchema,
             data: process.env,
             dotenv: {
-                path: pathResolve(getDirname(import.meta.url), `../../configs/${process.env.NODE_ENV}.env`)
+                path: nodePath.resolve(getDirname(import.meta.url), `../../configs/${process.env.NODE_ENV}.env`)
             }
         });
 
-        for (const key of Object.keys(envConfig)) {
-            if (!envConfig[key]) {
-                return Promise.reject(new Error(`envConfig missing required value for: ${key}`));
+        for (const [key, value] of Object.entries(envConfig)) {
+            if (!value) {
+                throw new Error(`envConfig missing required value for: ${key}`);
             }
         }
 
@@ -92,7 +90,7 @@ const configPlugin: FastifyPluginAsync<IConfigPluginOptions> = async (server: Fa
     catch (ex) {
         server.log.error({ tags: [PluginName] }, `registering failed: ${exMessage(ex)}`);
 
-        return Promise.reject(ex instanceof Error ? ex : new Error(exMessage(ex)));
+        throw ex instanceof Error ? ex : new Error(exMessage(ex));
     }
 };
 

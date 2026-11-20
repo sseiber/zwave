@@ -41,8 +41,8 @@ function schedulesError(schedules: ISchedule[] | undefined): string | undefined 
 
     const geo = getGeoLocation();
 
-    for (let i = 0; i < schedules.length; i++) {
-        const invalid = validateSchedule(schedules[i], geo);
+    for (const [i, schedule] of schedules.entries()) {
+        const invalid = validateSchedule(schedule, geo);
         if (invalid) {
             return `Schedule ${i + 1}: ${invalid}`;
         }
@@ -57,6 +57,9 @@ export interface IScenesRouterOptions { }
 const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (server: FastifyInstance, options: IScenesRouterOptions): Promise<void> => {
     server.log.info({ tags: [RouteName] }, `registering...`);
 
+    // Fastify needs a promise-returning plugin so avvio knows when registration is
+    // done; registering routes is synchronous, so there is nothing to await.
+    // eslint-disable-next-line @typescript-eslint/require-await
     await server.register(async (serverRoute, _routeOptions) => {
         try {
             serverRoute.route<{ Reply: IServiceReply }>({
@@ -251,10 +254,10 @@ const scenesRouterPlugin: FastifyPluginAsync<IScenesRouterOptions> = async (serv
         catch (ex) {
             serverRoute.log.error({ tags: [RouteName] }, `registering routes failed: ${exMessage(ex)}`);
 
-            throw new Error(`Failed to register ${RouteName} ${exMessage(ex)}`);
+            throw new Error(`Failed to register ${RouteName} ${exMessage(ex)}`, { cause: ex });
         }
 
-        return Promise.resolve();
+        return;
     }, options);
 };
 

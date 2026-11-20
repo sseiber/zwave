@@ -4,7 +4,7 @@ import {
 } from 'fastify';
 import fp from 'fastify-plugin';
 import fastifyStatic from '@fastify/static';
-import { resolve as pathResolve } from 'node:path';
+import nodePath from 'node:path';
 import fse from 'fs-extra';
 import { exMessage } from '../utils/index.js';
 import { PluginName as ConfigPluginName } from './config.js';
@@ -18,12 +18,12 @@ const webClientPlugin: FastifyPluginAsync<IWebClientPluginOptions> = async (serv
     server.log.info({ tags: [PluginName] }, `Registering...`);
 
     try {
-        const root = pathResolve(server.config.env.webClientRoot);
+        const root = nodePath.resolve(server.config.env.webClientRoot);
 
         // Serve the built SPA only if the client bundle is present. In local dev the
         // web client runs from the Vite dev server, so this is skipped and the
         // service stays API-only.
-        if (!(await fse.pathExists(pathResolve(root, 'index.html')))) {
+        if (!(await fse.pathExists(nodePath.resolve(root, 'index.html')))) {
             server.log.info({ tags: [PluginName] }, `No web client found at ${root}; serving API only`);
 
             return;

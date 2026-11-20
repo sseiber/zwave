@@ -1,14 +1,6 @@
-import { exMessage } from './exMessage.js';
-import { forget } from './forget.js';
-import { getFilename, getDirname } from './dirname.js';
-import { pjson } from './pjson.js';
-import { sleep } from './sleep.js';
+export { exMessage } from './exMessage.js';
+export { getFilename, getDirname } from './dirname.js';
+export { forget } from './forget.js';
+export { pjson } from './pjson.js';
 
-export {
-    exMessage,
-    forget,
-    getFilename,
-    getDirname,
-    pjson,
-    sleep
-};
+export { sleep } from './sleep.js';
