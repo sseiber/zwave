@@ -1,0 +1,54 @@
+# Build and lint every pull request.
+#
+# Until this existed, nothing checked a PR: `main` was unprotected and the only build
+# in CI was the one inside the release image, which runs *after* a merge. A PR could
+# merge with a type error or a lint failure and the first sign of it would be a failed
+# release.
+#
+# This runs the same two commands the image's build stage runs, in the same order, so a
+# green PR means the release build will get that far too. It does not replace the image
+# build -- that also exercises the Dockerfile, the dependency prune and the runtime
+# stage, none of which a PR touches often.
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# A force-push to a PR branch makes the in-flight run irrelevant
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-lint:
+    name: Build and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Matches the node:22 base the image is built on, so a version-dependent failure
+      # shows up here rather than at release time
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # contracts -> schemas -> service -> web, in dependency order. Generating the
+      # schemas is part of build:service, so a change to zwaveTypes.ts that breaks
+      # generation fails here.
+      - name: Build all workspaces
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint
