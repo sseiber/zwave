@@ -238,8 +238,9 @@ gh run watch                                        # follow it
 ```
 
 A push to `main` publishes too, but only when the root `package.json` version has no
-image yet, so merging without a version bump republishes nothing. `:latest` follows
-`main` only.
+image yet, so merging without a version bump republishes nothing. If the branch was
+already test-published, the merge moves `:latest` onto that image rather than building
+it again. `:latest` follows `main` only.
 
 The package is public, so pulling it needs no credentials anywhere.
 

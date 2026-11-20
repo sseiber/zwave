@@ -299,9 +299,12 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
   write`), so there is no personal access token to store or rotate. Two ways in:
   - `gh workflow run publish-image.yml --ref <branch>` — publishes **that branch**, so
     the build/push/pull-on-the-tablet loop does not need the work merged first.
-  - a push to `main` — publishes only when the root `package.json` version has no image
-    yet, so merging a PR that didn't bump the version republishes nothing. `:latest`
-    moves only on `main`.
+  - a push to `main` — publishes when the root `package.json` version has no image yet,
+    so merging a PR that didn't bump the version republishes nothing. When the version
+    *was* already published (the usual case, from testing the branch first) the merge
+    instead repoints `:latest` onto that existing index — a `buildx imagetools create`
+    tag copy, no rebuild. `:latest` moves only on `main`, so a branch run never touches
+    it; guarding on existence alone used to mean it never moved at all.
   Each arch builds on a **native runner** (`ubuntu-latest` / `ubuntu-24.04-arm`, free
   because the repo is public) and pushes untagged by digest; a merge job binds the two
   digests under the version tag. The image build *is* the verification — its build

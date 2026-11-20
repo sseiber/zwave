@@ -11,8 +11,10 @@
 #   workflow_dispatch  Publishes whatever branch you pick. This is the one for the
 #                      build/push/pull-on-the-tablet loop — it does not need the work
 #                      merged first:  gh workflow run publish-image.yml --ref <branch>
-#   push to main       Publishes only if package.json's version has no image yet, so
-#                      merging a PR that did not bump the version republishes nothing.
+#   push to main       Publishes if package.json's version has no image yet, so merging
+#                      a PR that did not bump the version republishes nothing. If the
+#                      version was already published from its branch, the merge moves
+#                      :latest onto it instead -- a tag copy, not a rebuild.
 #
 # Both architectures build on native runners in parallel rather than one of them under
 # QEMU, which this repo gets free because it is public. Each pushes an untagged image
@@ -44,8 +46,11 @@ jobs:
       version: ${{ steps.plan.outputs.version }}
       publish: ${{ steps.plan.outputs.publish }}
       latest: ${{ steps.plan.outputs.latest }}
+      retag: ${{ steps.plan.outputs.retag }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
         with:
@@ -54,7 +59,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: plan
-        name: Read the version and check whether it is already published
+        name: Decide whether to build, to move :latest, or to do nothing
         run: |
           set -euo pipefail
 
@@ -66,25 +71,48 @@ jobs:
 
           # :latest follows main only, so a branch build can never move it
           if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            echo "latest=true" >> "$GITHUB_OUTPUT"
+            latest=true
           else
-            echo "latest=false" >> "$GITHUB_OUTPUT"
+            latest=false
           fi
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
 
-          # A hand-triggered run always publishes: that is the iteration loop, and it
-          # is expected to overwrite the tag it just pushed.
+          # Empty for a tag that does not exist. An unexpected empty answer biases
+          # towards doing the work rather than skipping it, which is the safe way round.
+          digest_of() {
+            docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$1" 2>/dev/null || true
+          }
+
+          plan() {
+            echo "publish=$1" >> "$GITHUB_OUTPUT"
+            echo "retag=$2" >> "$GITHUB_OUTPUT"
+            echo "::notice::$3"
+          }
+
+          # A hand-triggered run always builds: that is the iteration loop, and it is
+          # expected to overwrite the tag it just pushed.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Publishing $image:$version (manual run from $GITHUB_REF_NAME)"
+            plan true false "Publishing $image:$version (manual run from $GITHUB_REF_NAME)"
             exit 0
           fi
 
-          if docker manifest inspect "$image:$version" >/dev/null 2>&1; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::$image:$version is already published — nothing to do. Bump the version to publish."
+          version_digest=$(digest_of "$image:$version")
+
+          if [ -z "$version_digest" ]; then
+            plan true false "Publishing $image:$version"
+            exit 0
+          fi
+
+          # The version already has an image. Usually that means a branch run of this
+          # workflow published it before the PR merged, so there is nothing to rebuild
+          # from the same source -- but :latest can still be behind, and skipping the
+          # whole run on existence alone is what used to leave it behind for good.
+          if [ "$latest" != true ]; then
+            plan false false "$image:$version is already published — nothing to do. Bump the version to publish."
+          elif [ "$(digest_of "$image:latest")" = "$version_digest" ]; then
+            plan false false "$image:$version is already published and :latest points at it — nothing to do."
           else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Publishing $image:$version"
+            plan false true "$image:$version is already published; moving :latest onto it without rebuilding."
           fi
 
   build:
@@ -180,3 +208,30 @@ jobs:
 
           docker buildx imagetools inspect "$IMAGE:$VERSION"
           echo "::notice::Published $IMAGE:$VERSION"
+
+  # Moving a tag onto an index that is already in the registry copies no layers and
+  # needs no builders, so this costs seconds where a rebuild of both architectures
+  # costs minutes. It is the normal path for a release whose branch was test-published.
+  retag:
+    name: Move :latest onto the published version
+    needs: prepare
+    if: needs.prepare.outputs.retag == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Repoint :latest
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
+          docker buildx imagetools inspect "$IMAGE:latest"
+          echo "::notice::Moved $IMAGE:latest onto $VERSION"
