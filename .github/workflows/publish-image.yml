@@ -6,24 +6,35 @@
 # run gets a GITHUB_TOKEN instead: scoped to this repository, valid only for the run,
 # and nothing to rotate.
 #
-# Two ways in, because the version bump is the release signal in this repo:
+# A release is a git tag, and nothing else is. The previous design inferred it, by
+# asking the registry whether package.json's version already had an image. An inference
+# is the wrong foundation for a release: it skipped a merge that still had :latest to
+# move, and :latest sat on 1.4.0 for six releases while every run reported success. A
+# tag says what the author meant, so there is nothing left to infer.
 #
-#   workflow_dispatch  Publishes whatever branch you pick. This is the one for the
-#                      build/push/pull-on-the-tablet loop — it does not need the work
-#                      merged first:  gh workflow run publish-image.yml --ref <branch>
-#   push to main       Publishes only if package.json's version has no image yet, so
-#                      merging a PR that did not bump the version republishes nothing.
+# Two ways in:
+#
+#   push a tag v*      The release. Publishes :<version> and moves :latest. The tag
+#                      version must match every package.json in the repo or the run
+#                      fails before building — a tag that disagrees with the image it
+#                      produced is a trap for whoever reads it later. Use
+#                      .scripts/incVersion.sh, which bumps, commits, tags and pushes
+#                      together so the two cannot drift.
+#   workflow_dispatch  Rebuilds whatever ref you pick at its package.json version and
+#                      leaves :latest alone. This is the build/push/pull-on-the-tablet
+#                      loop; it needs the work neither merged nor tagged:
+#                        gh workflow run publish-image.yml --ref <branch>
 #
 # Both architectures build on native runners in parallel rather than one of them under
 # QEMU, which this repo gets free because it is public. Each pushes an untagged image
-# by digest; the merge job then binds the two digests under the version tag.
+# by digest; the merge job then binds the two digests under the tags.
 
 name: Publish image
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
 
 # The whole reason this workflow exists: the only credential it needs is handed to it.
 permissions:
@@ -37,60 +48,61 @@ concurrency:
 
 jobs:
   prepare:
-    name: Decide what to publish
+    name: Resolve and check the version
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.plan.outputs.image }}
       version: ${{ steps.plan.outputs.version }}
-      publish: ${{ steps.plan.outputs.publish }}
       latest: ${{ steps.plan.outputs.latest }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - id: plan
-        name: Read the version and check whether it is already published
+        name: Resolve the version and check every manifest agrees with the tag
         run: |
           set -euo pipefail
 
-          # One source of truth for both, the same two the local script reads
+          # The image name has one source of truth, the file the local script reads too
           image=$(node -p "require('./configs/imageConfig.json').imageName")
-          version=$(node -p "require('./package.json').version")
           echo "image=$image" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
 
-          # :latest follows main only, so a branch build can never move it
-          if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            echo "latest=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "latest=false" >> "$GITHUB_OUTPUT"
-          fi
-
-          # A hand-triggered run always publishes: that is the iteration loop, and it
-          # is expected to overwrite the tag it just pushed.
+          # A hand-triggered run is an iteration build, not a release: it publishes
+          # whatever package.json says and leaves :latest alone, so a half-finished
+          # branch can never become what a fresh deployment pulls.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Publishing $image:$version (manual run from $GITHUB_REF_NAME)"
+            version=$(node -p "require('./package.json').version")
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Rebuilding $image:$version from $GITHUB_REF_NAME (:latest untouched)"
             exit 0
           fi
 
-          if docker manifest inspect "$image:$version" >/dev/null 2>&1; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::$image:$version is already published — nothing to do. Bump the version to publish."
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Publishing $image:$version"
+          version="${GITHUB_REF#refs/tags/v}"
+
+          # There is one image, so every workspace version moves together. A workspace
+          # left behind means the bump was done by hand and half-finished, and the tag
+          # would name a version the image does not report.
+          mismatched=false
+          for manifest in package.json packages/*/package.json; do
+            found=$(node -p "require('./$manifest').version")
+            if [ "$found" != "$version" ]; then
+              echo "::error file=$manifest::$manifest says $found, but the tag says $version"
+              mismatched=true
+            fi
+          done
+
+          if [ "$mismatched" = true ]; then
+            echo "::error::Tag v$version disagrees with the repo. Use .scripts/incVersion.sh, which bumps and tags together."
+            exit 1
           fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "latest=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::Releasing $image:$version, and moving :latest onto it"
 
   build:
     name: Build ${{ matrix.arch }}
     needs: prepare
-    if: needs.prepare.outputs.publish == 'true'
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
