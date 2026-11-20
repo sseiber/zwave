@@ -311,10 +311,11 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
   image name and version. A multi-platform `arch` (comma-separated) triggers `--push`
   (no local `--load`) and requires a `docker-container` buildx builder **and** a
   `docker login ghcr.io` with a `write:packages` token. Prefer the workflow.
-- Image: `ghcr.io/sseiber/zwave-service`. The runtime stage carries
-  `org.opencontainers.image.source`, which is what links the package to this repo on
-  GHCR; an orphaned package must also be granted to the repo once by hand under
-  Package settings → Manage Actions access.
+- Image: `ghcr.io/sseiber/zwave-service`, **public**, so every pull (the Pi included) is
+  anonymous — there is no registry credential on any deployment host. The runtime stage
+  carries `org.opencontainers.image.source`, which links the package to this repo on
+  GHCR. Public visibility is also what lets the workflow push: GHCR denies a run token
+  the manifest *read* a push performs on a private package it was not explicitly granted.
 - Runtime user `zwaveuser` is in the `dialout` group for serial access
 
 ## Important Implementation Details

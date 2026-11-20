@@ -241,7 +241,11 @@ A push to `main` publishes too, but only when the root `package.json` version ha
 image yet, so merging without a version bump republishes nothing. `:latest` follows
 `main` only.
 
-To build locally instead (needs `docker login ghcr.io` with a `write:packages` token):
+The package is public, so pulling it needs no credentials anywhere.
+
+Building locally is the fallback, not the normal path: it needs a personal access token
+with `write:packages` in the local Docker keychain (`docker login ghcr.io`), which
+expires and grants far more than a push requires. Prefer the workflow.
 
 ```bash
 npm run dockerbuild     # build and push the multi-arch image
