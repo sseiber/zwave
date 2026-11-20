@@ -60,7 +60,7 @@ interface IScheduleState {
 function soonestNextRun(nextRuns: (number | undefined)[]): number | undefined {
     const times = nextRuns.filter((t): t is number => t !== undefined);
 
-    return times.length ? Math.min(...times) : undefined;
+    return times.length > 0 ? Math.min(...times) : undefined;
 }
 
 class SceneScheduler {
@@ -77,22 +77,24 @@ class SceneScheduler {
 
     public start(): void {
         this.server.log.info({ tags: [ServiceName] }, this.geo
-            ? `Scheduler started (lat ${this.geo.latitude}, lon ${this.geo.longitude}; timezone ${Intl.DateTimeFormat().resolvedOptions().timeZone})`
-            : `Scheduler started (no zwaveLatitude/zwaveLongitude configured - sunrise/sunset schedules are unavailable; timezone ${Intl.DateTimeFormat().resolvedOptions().timeZone})`);
+            ? `Scheduler started (lat ${this.geo.latitude}, lon ${this.geo.longitude}; timezone ${new Intl.DateTimeFormat().resolvedOptions().timeZone})`
+            : `Scheduler started (no zwaveLatitude/zwaveLongitude configured - sunrise/sunset schedules are unavailable; timezone ${new Intl.DateTimeFormat().resolvedOptions().timeZone})`);
 
         this.timer = setInterval(() => this.tick(), TickIntervalMs);
     }
 
     public stop(): void {
-        if (this.timer) {
-            clearInterval(this.timer);
-            this.timer = undefined;
+        if (!this.timer) {
+            return;
         }
+
+        clearInterval(this.timer);
+        this.timer = undefined;
     }
 
     // Next run times, for diagnostics (soonest across each scene's schedules)
     public getPlan(): { sceneId: string; nextRun?: string }[] {
-        return [...this.state.entries()].map(([sceneId, entry]) => {
+        return [...this.state].map(([sceneId, entry]) => {
             const soonest = soonestNextRun(entry.nextRuns);
 
             return { sceneId, nextRun: soonest ? new Date(soonest).toISOString() : undefined };
@@ -125,7 +127,7 @@ class SceneScheduler {
 
         // Forget scenes that were deleted or had all their schedules removed
         const activeIds = new Set(scenes.map(scene => scene.id));
-        for (const sceneId of [...this.state.keys()]) {
+        for (const sceneId of this.state.keys()) {
             if (!activeIds.has(sceneId)) {
                 this.state.delete(sceneId);
             }
@@ -149,7 +151,11 @@ class SceneScheduler {
                 .filter(({ nextRun }) => nextRun !== undefined && nextRun <= now)
                 .map(({ index }) => index);
 
-            if (dueIndexes.length > 0) {
+            if (dueIndexes.length === 0) {
+                continue;
+            }
+
+            {
                 forget(async () => this.activate(scene));
 
                 const schedules = scene.schedules ?? [];

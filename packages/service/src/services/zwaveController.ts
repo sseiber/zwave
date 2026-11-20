@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { resolve as pathResolve } from 'node:path';
+import nodePath from 'node:path';
 import { randomBytes } from 'node:crypto';
 import fse from 'fs-extra';
 import {
@@ -101,15 +101,19 @@ export interface INetworkTelemetry {
 // device usually means it fell back to a slower, less reliable route.
 function dataRateKbps(rate: number | undefined): number | undefined {
     switch (rate) {
-        case 1:
+        case 1: {
             return 9.6;
-        case 2:
+        }
+        case 2: {
             return 40;
+        }
         case 3:
-        case 4:
+        case 4: {
             return 100;
-        default:
+        }
+        default: {
             return undefined;
+        }
     }
 }
 
@@ -151,7 +155,7 @@ export function describeConfigParam(valueId: IConfigValueId, metadata: IConfigMe
 
     return {
         parameter,
-        ...(bitmask !== undefined ? { bitmask } : {}),
+        ...(bitmask === undefined ? {} : { bitmask }),
         label: metadata?.label ?? `Parameter ${parameter}`,
         ...(metadata?.description ? { description: metadata.description } : {}),
         ...(typeof value === 'number' ? { value } : {}),
@@ -182,11 +186,11 @@ export class ZWaveController {
 
         server.log.info({ tags: [ControllerName] }, `Creating Z-Wave controller on serial port ${serialPort}`);
 
-        const keys = await ZWaveController.loadOrCreateKeys(server, storagePath);
+        const keys = await this.loadOrCreateKeys(server, storagePath);
 
         // Ensure the external device-config dir exists before the driver starts, so a
         // fresh install (empty dir) doesn't trip driver startup
-        await fse.ensureDir(pathResolve(storagePath, ConfigDirName));
+        await fse.ensureDir(nodePath.resolve(storagePath, ConfigDirName));
 
         const controller = new ZWaveController(server, serialPort, storagePath, keys);
 
@@ -196,7 +200,7 @@ export class ZWaveController {
     }
 
     private static async loadOrCreateKeys(server: FastifyInstance, storagePath: string): Promise<ISecurityKeys> {
-        const keysPath = pathResolve(storagePath, SecurityKeysFileName);
+        const keysPath = nodePath.resolve(storagePath, SecurityKeysFileName);
 
         // Allow explicit overrides via environment variables
         const envKeys: Partial<ISecurityKeys> = {
@@ -232,8 +236,9 @@ export class ZWaveController {
 
         // Environment overrides take precedence over persisted/generated values
         for (const key of Object.keys(keys) as (keyof ISecurityKeys)[]) {
-            if (envKeys[key]) {
-                keys[key] = envKeys[key];
+            const override = envKeys[key];
+            if (override) {
+                keys[key] = override;
             }
         }
 
@@ -270,14 +275,18 @@ export class ZWaveController {
                 S2_AccessControl: Buffer.from(this.keys.LR_S2_AccessControl, 'hex')
             },
             storage: {
-                cacheDir: pathResolve(this.storagePath, CacheDirName),
+                cacheDir: nodePath.resolve(this.storagePath, CacheDirName),
                 // Enables Driver.installConfigUpdate() to refresh the device database
                 // (adds/updates named config params for devices) without a lib bump
-                deviceConfigExternalDir: pathResolve(this.storagePath, ConfigDirName)
+                deviceConfigExternalDir: nodePath.resolve(this.storagePath, ConfigDirName)
             },
             inclusionUserCallbacks: {
-                grantSecurityClasses: async requested => await Promise.resolve(requested),
-                validateDSKAndEnterPIN: async _dsk => await Promise.resolve(this.pendingInclusionPin ?? ''),
+                // zwave-js's signatures demand promise-returning callbacks, and
+                // neither of these has anything to await.
+                // eslint-disable-next-line @typescript-eslint/require-await
+                grantSecurityClasses: async requested => requested,
+                // eslint-disable-next-line @typescript-eslint/require-await
+                validateDSKAndEnterPIN: async _dsk => this.pendingInclusionPin ?? '',
                 abort: () => {
                     this.server.log.warn({ tags: [ControllerName] }, `Secure inclusion aborted`);
                 }
@@ -312,7 +321,7 @@ export class ZWaveController {
             this.server.log.info({ tags: [ControllerName] }, `Driver started, waiting for controller interview to complete...`);
         }
         catch (ex) {
-            throw new Error(`Failed to start Z-Wave driver on ${this.serialPort}: ${exMessage(ex)}`);
+            throw new Error(`Failed to start Z-Wave driver on ${this.serialPort}: ${exMessage(ex)}`, { cause: ex });
         }
     }
 
@@ -575,7 +584,7 @@ export class ZWaveController {
         const valueId = {
             commandClass: CommandClasses.Configuration,
             property: request.parameter,
-            ...(request.bitmask !== undefined ? { propertyKey: request.bitmask } : {})
+            ...(request.bitmask === undefined ? {} : { propertyKey: request.bitmask })
         };
 
         const metadata = node.getValueMetadata(valueId) as IConfigMetadata | undefined;
@@ -879,25 +888,30 @@ export class ZWaveController {
 
             const unit = (node.getValueMetadata(valueId) as { unit?: string }).unit;
             switch (unit) {
-                case 'W':
+                case 'W': {
                     power.watts = value;
                     found = true;
                     break;
-                case 'kWh':
+                }
+                case 'kWh': {
                     power.kWh = value;
                     found = true;
                     break;
-                case 'V':
+                }
+                case 'V': {
                     power.volts = value;
                     found = true;
                     break;
-                case 'A':
+                }
+                case 'A': {
                     power.amps = value;
                     found = true;
                     break;
+                }
 
-                default:
+                default: {
                     break;
+                }
             }
         }
 
@@ -949,56 +963,70 @@ export class ZWaveController {
 
     private securityClassLabel(securityClass: SecurityClass | undefined): string | undefined {
         switch (securityClass) {
-            case SecurityClass.None:
+            case SecurityClass.None: {
                 return 'None (insecure)';
-            case SecurityClass.S2_Unauthenticated:
+            }
+            case SecurityClass.S2_Unauthenticated: {
                 return 'S2 Unauthenticated';
-            case SecurityClass.S2_Authenticated:
+            }
+            case SecurityClass.S2_Authenticated: {
                 return 'S2 Authenticated';
-            case SecurityClass.S2_AccessControl:
+            }
+            case SecurityClass.S2_AccessControl: {
                 return 'S2 Access Control';
-            case SecurityClass.S0_Legacy:
+            }
+            case SecurityClass.S0_Legacy: {
                 return 'S0 Legacy';
+            }
 
-            default:
+            default: {
                 return undefined;
+            }
         }
     }
 
     private mapNodeStatus(status: NodeStatus): DeviceStatus {
         switch (status) {
-            case NodeStatus.Asleep:
+            case NodeStatus.Asleep: {
                 return DeviceStatus.Asleep;
+            }
 
-            case NodeStatus.Awake:
+            case NodeStatus.Awake: {
                 return DeviceStatus.Awake;
+            }
 
-            case NodeStatus.Dead:
+            case NodeStatus.Dead: {
                 return DeviceStatus.Dead;
+            }
 
-            case NodeStatus.Alive:
+            case NodeStatus.Alive: {
                 return DeviceStatus.Alive;
+            }
 
-            default:
+            default: {
                 return DeviceStatus.Unknown;
+            }
         }
     }
 
     private mapInclusionStrategy(strategyOption?: InclusionStrategyOption): InclusionStrategy.Default | InclusionStrategy.Insecure | InclusionStrategy.Security_S0 | InclusionStrategy.Security_S2 {
         switch (strategyOption) {
-            case InclusionStrategyOption.Insecure:
+            case InclusionStrategyOption.Insecure: {
                 return InclusionStrategy.Insecure;
+            }
 
-            case InclusionStrategyOption.Security_S2:
+            case InclusionStrategyOption.Security_S2: {
                 return InclusionStrategy.Security_S2;
+            }
 
-            case InclusionStrategyOption.Security_S0:
+            case InclusionStrategyOption.Security_S0: {
                 return InclusionStrategy.Security_S0;
+            }
 
-            case InclusionStrategyOption.Default:
-            case InclusionStrategyOption.SmartStart:
-            default:
+            // Default and SmartStart both land here, as does anything unrecognised
+            default: {
                 return InclusionStrategy.Default;
+            }
         }
     }
 

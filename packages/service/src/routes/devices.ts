@@ -37,6 +37,9 @@ export interface IDevicesRouterOptions { }
 const devicesRouterPlugin: FastifyPluginAsync<IDevicesRouterOptions> = async (server: FastifyInstance, options: IDevicesRouterOptions): Promise<void> => {
     server.log.info({ tags: [RouteName] }, `registering...`);
 
+    // Fastify needs a promise-returning plugin so avvio knows when registration is
+    // done; registering routes is synchronous, so there is nothing to await.
+    // eslint-disable-next-line @typescript-eslint/require-await
     await server.register(async (serverRoute, _routeOptions) => {
         try {
             //
@@ -346,10 +349,10 @@ const devicesRouterPlugin: FastifyPluginAsync<IDevicesRouterOptions> = async (se
         catch (ex) {
             serverRoute.log.error({ tags: [RouteName] }, `registering routes failed: ${exMessage(ex)}`);
 
-            throw new Error(`Failed to register ${RouteName} ${exMessage(ex)}`);
+            throw new Error(`Failed to register ${RouteName} ${exMessage(ex)}`, { cause: ex });
         }
 
-        return Promise.resolve();
+        return;
     }, options);
 };
 

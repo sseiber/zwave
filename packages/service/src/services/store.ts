@@ -3,7 +3,7 @@ import {
     FastifyPluginAsync
 } from 'fastify';
 import fp from 'fastify-plugin';
-import { resolve as pathResolve } from 'node:path';
+import nodePath from 'node:path';
 import fse from 'fs-extra';
 import { v4 as uuidv4 } from 'uuid';
 import {
@@ -65,9 +65,9 @@ class RoomSceneStore {
     public static async createStore(server: FastifyInstance): Promise<RoomSceneStore> {
         const storagePath = server.config.env.zwaveStorage;
 
-        const rooms = await RoomSceneStore.readCollection<IRoom>(pathResolve(storagePath, RoomsFileName));
-        const scenes = await RoomSceneStore.readCollection<IScene>(pathResolve(storagePath, ScenesFileName));
-        const runs = await RoomSceneStore.readCollection<ISceneRunRecord>(pathResolve(storagePath, SceneRunsFileName));
+        const rooms = await this.readCollection<IRoom>(nodePath.resolve(storagePath, RoomsFileName));
+        const scenes = await this.readCollection<IScene>(nodePath.resolve(storagePath, ScenesFileName));
+        const runs = await this.readCollection<ISceneRunRecord>(nodePath.resolve(storagePath, SceneRunsFileName));
 
         server.log.info({ tags: [ServiceName] }, `Loaded ${rooms.length} room(s) and ${scenes.length} scene(s) from ${storagePath}`);
 
@@ -152,7 +152,7 @@ class RoomSceneStore {
 
     public async deleteRoom(roomId: string): Promise<boolean> {
         const index = this.rooms.findIndex(room => room.id === roomId);
-        if (index < 0) {
+        if (index === -1) {
             return false;
         }
 
@@ -219,7 +219,7 @@ class RoomSceneStore {
 
     public async deleteScene(sceneId: string): Promise<boolean> {
         const index = this.scenes.findIndex(scene => scene.id === sceneId);
-        if (index < 0) {
+        if (index === -1) {
             return false;
         }
 
@@ -260,12 +260,14 @@ class RoomSceneStore {
 
     // Flush any pending run-record write immediately (called on shutdown)
     public async flushSceneRuns(): Promise<void> {
-        if (this.runsFlushTimer) {
-            clearTimeout(this.runsFlushTimer);
-            this.runsFlushTimer = undefined;
-
-            await this.flushRuns();
+        if (!this.runsFlushTimer) {
+            return;
         }
+
+        clearTimeout(this.runsFlushTimer);
+        this.runsFlushTimer = undefined;
+
+        await this.flushRuns();
     }
 
     private scheduleRunsFlush(): void {
@@ -309,7 +311,7 @@ class RoomSceneStore {
     }
 
     private async writeCollection(fileName: string, data: unknown): Promise<void> {
-        const filePath = pathResolve(this.storagePath, fileName);
+        const filePath = nodePath.resolve(this.storagePath, fileName);
         const tempPath = `${filePath}.tmp`;
 
         try {

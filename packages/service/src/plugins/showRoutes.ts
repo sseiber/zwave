@@ -25,7 +25,7 @@ const showRoutesPlugin: FastifyPluginCallback<IRoutePluginOptions> = (server: Fa
         });
 
         server.addHook('onReady', () => {
-            const routesArray = Array.from(routes).sort();
+            const routesArray = [...routes].toSorted();
             const routesText = routesArray.map(route => `- ${route as string}`).join('\n');
 
             server.log.info({ tags: [PluginName] }, `Available routes:\n${routesText}`);

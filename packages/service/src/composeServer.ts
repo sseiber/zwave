@@ -4,7 +4,7 @@ import fastify, {
 } from 'fastify';
 import autoload from '@fastify/autoload';
 import sensible from '@fastify/sensible';
-import { resolve as pathResolve } from 'node:path';
+import nodePath from 'node:path';
 import configPlugin from './plugins/config.js';
 import showRoutesPlugin from './plugins/showRoutes.js';
 import webClientPlugin from './plugins/webClient.js';
@@ -36,13 +36,13 @@ const composeServer = async (options: composeOptions = {}): Promise<FastifyInsta
         server.log.info({ tags: [ModuleName] }, `Registering services`);
 
         await server.register(autoload, {
-            dir: pathResolve(getDirname(import.meta.url), 'services')
+            dir: nodePath.resolve(getDirname(import.meta.url), 'services')
         });
 
         server.log.info({ tags: [ModuleName] }, `Registering routes`);
 
         await server.register(autoload, {
-            dir: pathResolve(getDirname(import.meta.url), 'routes'),
+            dir: nodePath.resolve(getDirname(import.meta.url), 'routes'),
             options: {
                 prefix: '/api/v1'
             }
@@ -57,7 +57,7 @@ const composeServer = async (options: composeOptions = {}): Promise<FastifyInsta
         return server;
     }
     catch (ex) {
-        throw new Error(`Failed to compose server instance: ${exMessage(ex)}`);
+        throw new Error(`Failed to compose server instance: ${exMessage(ex)}`, { cause: ex });
     }
 };
 

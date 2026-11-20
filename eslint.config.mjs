@@ -1,6 +1,8 @@
+import { defineConfig } from 'eslint/config';
 import jseslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import stylisticPlugin from '@stylistic/eslint-plugin';
+import unicornPlugin from 'eslint-plugin-unicorn';
 import globals from 'globals';
 
 const stylisticRules = {
@@ -11,6 +13,10 @@ const stylisticRules = {
     '@stylistic/member-delimiter-style': 'error',
     '@stylistic/new-parens': 'error',
     '@stylistic/no-multiple-empty-lines': 'error',
+    // Added during the eslint 10 migration: unicorn/prefer-export-from's autofix
+    // rewrote the utils barrel as `export {exMessage}`, which lint had no opinion
+    // about and the rest of the codebase does not match
+    '@stylistic/object-curly-spacing': ['error', 'always'],
     '@stylistic/quotes': ['error', 'single', { allowTemplateLiterals: 'always' }],
     '@stylistic/quote-props': ['error', 'as-needed', { 'unnecessary': false }],
     '@stylistic/semi': ['error', 'always'],
@@ -50,6 +56,7 @@ const typescriptRules = {
     'object-shorthand': 'error',
     'prefer-object-spread': 'error',
     'prefer-template': 'error',
+    '@typescript-eslint/prefer-promise-reject-errors': ['error', { allowThrowingAny: true, allowThrowingUnknown: true }],
     '@typescript-eslint/promise-function-async': 'error',
     'radix': 'error',
     'require-await': 'off',
@@ -60,8 +67,47 @@ const typescriptRules = {
 const javascriptRules = {
 };
 
+// Carried over from loopbox-monorepo. The 'off' entries are the ones whose advice is
+// either a matter of taste or actively worse in this codebase -- noted individually
+// rather than switching off whole categories.
+const unicornRules = {
+    'unicorn/filename-case': [
+        'error',
+        {
+            cases: {
+                camelCase: true,
+                pascalCase: true
+            },
+            checkDirectories: false
+        }
+    ],
+    'unicorn/catch-error-name': 'off',
+    'unicorn/consistent-boolean-name': 'off',
+    'unicorn/consistent-conditional-object-spread': ['error', 'ternary'],
+    'unicorn/name-replacements': 'off',
+    // Iterator#toArray() is an ES2025 iterator helper; this project compiles to ES2024
+    'unicorn/prefer-iterator-to-array': 'off',
+    // Node-style callbacks take null for "no error" -- Fastify's content type parser
+    // is called as done(null, body), and undefined is not the same signal
+    'unicorn/no-null': 'off',
+    // index.ts is the process entry point, and this service fails fast by design when
+    // the Z-Wave driver cannot start
+    'unicorn/no-process-exit': 'off',
+    // zwaveController groups members by capability -- inclusion, devices, config,
+    // telemetry -- with each public entry point beside the private helpers it uses.
+    // A global public-then-private order would scatter every one of those groups
+    'unicorn/consistent-class-member-order': 'off',
+    'unicorn/no-break-in-nested-loop': 'off',
+    'unicorn/no-duplicate-loops': 'off',
+    'unicorn/no-unreadable-for-of-expression': 'off',
+    'unicorn/prefer-simple-condition-first': 'off',
+    'unicorn/prefer-smaller-scope': 'off',
+    'unicorn/prefer-ternary': 'off',
+    'unicorn/require-array-sort-compare': 'off'
+};
 
-export default tseslint.config(
+
+export default defineConfig(
     {
         ignores: [
             'resources',
@@ -80,7 +126,8 @@ export default tseslint.config(
             jseslint.configs.recommended,
             ...tseslint.configs.recommendedTypeChecked,
             ...tseslint.configs.stylisticTypeChecked,
-            stylisticPlugin.configs['disable-legacy']
+            stylisticPlugin.configs['disable-legacy'],
+            unicornPlugin.configs.recommended
         ],
         languageOptions: {
             globals: {
@@ -99,12 +146,13 @@ export default tseslint.config(
         },
         rules: {
             ...typescriptRules,
-            ...stylisticRules
+            ...stylisticRules,
+            ...unicornRules
         }
     },
     {
         files: [
-            'eslint.config.js'
+            'eslint.config.mjs'
         ],
         extends: [
             jseslint.configs.recommended,

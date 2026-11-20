@@ -237,11 +237,11 @@ export function computeHealth(previous: INetworkTelemetry | undefined, current: 
             nodeId: node.nodeId,
             name: node.name,
             state: nodeHealthState(node, now),
-            ...(drop !== undefined ? { dropRate: round(drop, 3) } : {}),
-            ...(node.rtt !== undefined ? { rtt: Math.round(node.rtt) } : {}),
-            ...(node.rssi !== undefined ? { rssi: Math.round(node.rssi) } : {}),
-            ...(node.hops !== undefined ? { hops: node.hops } : {}),
-            ...(node.dataRate !== undefined ? { dataRate: node.dataRate } : {}),
+            ...(drop === undefined ? {} : { dropRate: round(drop, 3) }),
+            ...(node.rtt === undefined ? {} : { rtt: Math.round(node.rtt) }),
+            ...(node.rssi === undefined ? {} : { rssi: Math.round(node.rssi) }),
+            ...(node.hops === undefined ? {} : { hops: node.hops }),
+            ...(node.dataRate === undefined ? {} : { dataRate: node.dataRate }),
             ...(node.lastSeen ? { lastSeen: node.lastSeen } : {})
         };
     });
@@ -330,7 +330,7 @@ export function computeHealth(previous: INetworkTelemetry | undefined, current: 
     const hasRealProblem = factors.some(factor => factor.impact >= 10);
     const state = score >= GoodScore && !hasRealProblem
         ? HealthState.Good
-        : score >= FairScore ? HealthState.Fair : HealthState.Poor;
+        : (score >= FairScore ? HealthState.Fair : HealthState.Poor);
 
     const responding = nodes.length - offline.length;
 
@@ -388,7 +388,12 @@ function summarizeNoise(telemetry: INetworkTelemetry): INetworkHealth['noise'] {
     }
 
     // The loudest channel is the one that matters — it is the one drowning out traffic
-    const loudest = channels.reduce((worst, channel) => (channel.current > worst.current ? channel : worst));
+    let loudest = channels[0];
+    for (const channel of channels) {
+        if (channel.current > loudest.current) {
+            loudest = channel;
+        }
+    }
 
     return {
         current: Math.round(loudest.current),
@@ -435,7 +440,7 @@ function headlineFor(state: HealthState, factors: IHealthFactor[], responding: n
     }
 
     // Nothing actionable: lead with the fact that it is working, not with the caveat
-    if (!factors.some(factor => factor.impact >= 10)) {
+    if (factors.every(factor => factor.impact < 10)) {
         return `All ${total} devices responding · ${lead.toLowerCase()}`;
     }
 
@@ -485,10 +490,12 @@ class NetworkHealth {
             this.timer = undefined;
         }
 
-        if (this.sweepTimer) {
-            clearInterval(this.sweepTimer);
-            this.sweepTimer = undefined;
+        if (!this.sweepTimer) {
+            return;
         }
+
+        clearInterval(this.sweepTimer);
+        this.sweepTimer = undefined;
     }
 
     // Latest verdict plus the rolling series and the sweep. Sampled on a tick, but
@@ -526,7 +533,7 @@ class NetworkHealth {
                 errorRate: verdict.traffic.errorRate,
                 messagesPerMinute: verdict.traffic.messagesPerMinute,
                 ...(verdict.noise ? { noise: verdict.noise.current } : {}),
-                ...(averageResponseMs(telemetry) !== undefined ? { responseMs: averageResponseMs(telemetry) } : {})
+                ...(averageResponseMs(telemetry) === undefined ? {} : { responseMs: averageResponseMs(telemetry) })
             };
 
             this.samples.push({ at: now, telemetry, point });
@@ -557,7 +564,12 @@ class NetworkHealth {
             // Always take the least recently measured device (never-measured devices
             // sort first). The ping updates its lastSeen, so the next tick naturally
             // moves on to the next one — the rotation needs no cursor of its own.
-            const target = candidates.reduce((oldest, node) => (seenAt(node) < seenAt(oldest) ? node : oldest));
+            let target = candidates[0];
+            for (const node of candidates) {
+                if (seenAt(node) < seenAt(target)) {
+                    target = node;
+                }
+            }
 
             this.server.log.debug({ tags: [ServiceName] }, `Health sweep pinging device ${target.nodeId} (${target.name})`);
 
