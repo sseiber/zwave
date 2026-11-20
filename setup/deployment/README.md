@@ -151,9 +151,12 @@ volumes:
 
 ```bash
 cd ~/zwave
-docker login ghcr.io -u sseiber                     # only if the package is private
 docker compose up -d
 ```
+
+The package is public, so the pull needs no credentials — there is no `docker login`
+step on the Pi. If you logged in there previously, that stored token can be dropped:
+`docker logout ghcr.io`.
 
 `restart: unless-stopped` plus the enabled Docker service means the container
 returns after every reboot and power loss.

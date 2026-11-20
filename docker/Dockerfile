@@ -32,10 +32,11 @@ RUN npm prune --production
 # Stage 2: Runtime stage - minimal image
 FROM node:22-bookworm-slim AS runtime
 
-# Links the published package to this repository on GHCR. Without it the package is
-# orphaned: it shows no source, and a workflow's GITHUB_TOKEN is not granted access to
-# it by virtue of the repo. (An already-orphaned package still has to be granted once
-# by hand under Package settings -> Manage Actions access.)
+# Links the published package to this repository on GHCR, so the package page shows a
+# source and the repo's workflow is the package's natural publisher. A package created
+# before this label existed starts orphaned and has to be linked once by hand, from the
+# package page's "Connect repository"; GHCR also refuses a workflow push to a PRIVATE
+# package the run's token cannot read, which is why this one is public.
 LABEL org.opencontainers.image.source="https://github.com/sseiber/zwave"
 LABEL org.opencontainers.image.description="Fastify Z-Wave controller service and web UI for a Raspberry Pi"
 LABEL org.opencontainers.image.licenses="MIT"
