@@ -233,7 +233,8 @@ authenticates with the run's `GITHUB_TOKEN` — there is no access token to crea
 store or rotate.
 
 **A release is a git tag.** `.scripts/incVersion.sh` bumps every workspace, refreshes
-the lockfile, commits, tags and pushes, and the `v*` tag is what starts the publish:
+the lockfile, commits, tags and pushes, and the `v*` tag is what starts the publish.
+Full procedure, guards and verification: **[docs/releasing.md](docs/releasing.md)**.
 
 ```bash
 .scripts/incVersion.sh patch --push    # 1.32.0 -> 1.32.1, tagged v1.32.1, released

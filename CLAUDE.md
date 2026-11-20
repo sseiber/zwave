@@ -296,7 +296,9 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
   (`linux-x64` / `linux-arm64`) through `node-gyp-build`.
 - **Publishing is a GitHub Actions job**, `.github/workflows/publish-image.yml`, not a
   laptop task. It authenticates with the run's `GITHUB_TOKEN` (`permissions: packages:
-  write`), so there is no personal access token to store or rotate. Two ways in:
+  write`), so there is no personal access token to store or rotate. The procedure, its
+  guards and the branch-protection bypass it relies on are in `docs/releasing.md`.
+  Two ways in:
   - **pushing a `v*` tag is the release** — publishes `:<version>` and moves `:latest`.
     The workflow fails before building if the tag disagrees with any `package.json`, so
     a tag can't name a version the image doesn't contain. Tag with
