@@ -9,6 +9,7 @@ import configPlugin from './plugins/config.js';
 import showRoutesPlugin from './plugins/showRoutes.js';
 import webClientPlugin from './plugins/webClient.js';
 import { registerJsonBodyParser } from './plugins/jsonBodyParser.js';
+import { QuietRequestLogController } from './logging.js';
 import { getDirname, exMessage } from './utils/index.js';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -18,7 +19,10 @@ const ModuleName = 'ComposeServer';
 
 const composeServer = async (options: composeOptions = {}): Promise<FastifyInstance> => {
     try {
-        const server = fastify(options);
+        // Replaces Fastify's two-lines-per-request logging with one line for a request
+        // that failed; see QuietRequestLogController.
+        const serverOptions: composeOptions = { logController: new QuietRequestLogController(), ...options };
+        const server = fastify(serverOptions);
 
         registerJsonBodyParser(server);
 

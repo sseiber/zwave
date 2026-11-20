@@ -200,7 +200,12 @@ npm run dockerbuild      # build (and push) the multi-arch image
 
 ## Configuration (env)
 
-- `LOG_LEVEL` (default `debug`)
+- `LOG_LEVEL` (default `info`) — read straight from `process.env`, **not** via the
+  config schema: the logger is built before the config plugin registers, so
+  `LOG_LEVEL` in `configs/*.env` does not reach it (`server.config.env.LOG_LEVEL`
+  still reports that file's value)
+- `LOG_FORMAT` — `json` gives one JSON object per line for a log collector. Unset
+  (the default, including in the image) gives one readable coloured line per entry
 - `PORT` (default `9094`)
 - `zwaveStorage` (default `/rpi-zwave/data`) — network cache, keys, rooms/scenes
 - `zwaveSerialPort` (default `/dev/ttyACM0`)
@@ -335,7 +340,13 @@ Prefix `/api/v1`. Envelope: `{ succeeded, statusCode, message, data? }`.
 
 - ES modules throughout (`"type": "module"`)
 - Strict TypeScript with null checks
-- `{ tags: [Name] }` structured logging; `exMessage()` for safe error strings
+- `{ tags: [Name] }` structured logging; `exMessage()` for safe error strings.
+  `logging.ts` owns the logger: `loggerOptions()` is pretty-by-default (it used to key
+  off `NODE_ENV`, so the image — the only place this really runs — was the one place the
+  log was unreadable), and `QuietRequestLogController` replaces Fastify's two-lines-per-
+  request pair with a single warn line for requests that actually failed. It subclasses
+  `LogController` rather than setting `disableRequestLogging`, which is deprecated in
+  Fastify 5 and also silences `defaultErrorLog`, costing a 500 its stack trace.
 - The service fails fast if the Z-Wave driver cannot start (e.g. stick missing)
 - Individual device operations throw until the controller interview completes
   (`server.zwaveService` guards on driver readiness)
