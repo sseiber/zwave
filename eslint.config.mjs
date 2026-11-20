@@ -93,10 +93,23 @@ const unicornRules = {
     // index.ts is the process entry point, and this service fails fast by design when
     // the Z-Wave driver cannot start
     'unicorn/no-process-exit': 'off',
-    // zwaveController groups members by capability -- inclusion, devices, config,
-    // telemetry -- with each public entry point beside the private helpers it uses.
-    // A global public-then-private order would scatter every one of those groups
-    'unicorn/consistent-class-member-order': 'off',
+    // Public API first, private helpers after. The rule's default puts private
+    // methods ahead of public ones, which would hoist ~20 of zwaveController's
+    // internals above init() and bury its REST surface at the bottom of the file.
+    // Flipping those two groups asks for the order these classes already use, and
+    // only sorts by group -- members keep their relative order within one.
+    'unicorn/consistent-class-member-order': ['error', {
+        order: [
+            'static-field',
+            'static-block',
+            'static-method',
+            'private-field',
+            'public-field',
+            'constructor',
+            'public-method',
+            'private-method'
+        ]
+    }],
     'unicorn/no-break-in-nested-loop': 'off',
     'unicorn/no-duplicate-loops': 'off',
     'unicorn/no-unreadable-for-of-expression': 'off',

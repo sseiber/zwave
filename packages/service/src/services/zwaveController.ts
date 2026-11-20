@@ -462,26 +462,6 @@ export class ZWaveController {
         await this.setSwitchValue(node, CommandClasses['Multilevel Switch'], this.toZWaveLevel(level));
     }
 
-    // Drive a switch through `node.setValue` on targetValue rather than the CC API's
-    // `set()`. Both send the same command, but setValue runs zwave-js's value hooks:
-    // it optimistically updates the cached `currentValue` and schedules a verification
-    // poll (which an unsolicited report from the device cancels). `describeNode` reads
-    // that cached value, so with the CC API a device that never volunteers a report —
-    // common on older non-Plus switches — stayed "on" in GET /devices long after it was
-    // switched off.
-    private async setSwitchValue(node: ZWaveNode, commandClass: CommandClasses, value: number | boolean): Promise<void> {
-        const result = await node.setValue({ commandClass, property: 'targetValue' }, value);
-
-        // Working = the device accepted it and is transitioning (e.g. a dimmer ramping)
-        const accepted = result.status === SetValueStatus.Success
-            || result.status === SetValueStatus.SuccessUnsupervised
-            || result.status === SetValueStatus.Working;
-
-        if (!accepted) {
-            throw new Error(`Device ${node.id} did not accept the command: ${result.message ?? SetValueStatus[result.status]}`);
-        }
-    }
-
     // Rename a device. zwave-js stores node.name in the network cache (it is not
     // written to the device), so it persists across restarts with the storage volume.
     // An empty/whitespace name clears it, and callers fall back to "Node <id>".
@@ -527,23 +507,6 @@ export class ZWaveController {
             numNeighbors: lastResult?.numNeighbors,
             rssi: rssiValues.length > 0 ? Math.max(...rssiValues) : undefined
         };
-    }
-
-    private healthRatingText(rating: number): string {
-        if (rating >= 9) {
-            return 'Excellent';
-        }
-        if (rating >= 7) {
-            return 'Good';
-        }
-        if (rating >= 5) {
-            return 'Acceptable';
-        }
-        if (rating >= 3) {
-            return 'Poor — consider a repeater or moving the device';
-        }
-
-        return 'Very poor — the device is barely reachable';
     }
 
     //
@@ -729,6 +692,46 @@ export class ZWaveController {
         return this.getNode(nodeId).ping();
     }
 
+    //
+    // Internal helpers
+    //
+    // Drive a switch through `node.setValue` on targetValue rather than the CC API's
+    // `set()`. Both send the same command, but setValue runs zwave-js's value hooks:
+    // it optimistically updates the cached `currentValue` and schedules a verification
+    // poll (which an unsolicited report from the device cancels). `describeNode` reads
+    // that cached value, so with the CC API a device that never volunteers a report —
+    // common on older non-Plus switches — stayed "on" in GET /devices long after it was
+    // switched off.
+    private async setSwitchValue(node: ZWaveNode, commandClass: CommandClasses, value: number | boolean): Promise<void> {
+        const result = await node.setValue({ commandClass, property: 'targetValue' }, value);
+
+        // Working = the device accepted it and is transitioning (e.g. a dimmer ramping)
+        const accepted = result.status === SetValueStatus.Success
+            || result.status === SetValueStatus.SuccessUnsupervised
+            || result.status === SetValueStatus.Working;
+
+        if (!accepted) {
+            throw new Error(`Device ${node.id} did not accept the command: ${result.message ?? SetValueStatus[result.status]}`);
+        }
+    }
+
+    private healthRatingText(rating: number): string {
+        if (rating >= 9) {
+            return 'Excellent';
+        }
+        if (rating >= 7) {
+            return 'Good';
+        }
+        if (rating >= 5) {
+            return 'Acceptable';
+        }
+        if (rating >= 3) {
+            return 'Poor — consider a repeater or moving the device';
+        }
+
+        return 'Very poor — the device is barely reachable';
+    }
+
     private describeTelemetry(node: ZWaveNode): INodeTelemetry {
         const stats = node.statistics;
 
@@ -770,9 +773,6 @@ export class ZWaveController {
         return telemetry;
     }
 
-    //
-    // Internal helpers
-    //
     private assertReady(): void {
         if (!this.ready) {
             throw new Error(`The Z-Wave controller is not ready yet`);
